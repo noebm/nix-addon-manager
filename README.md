@@ -42,7 +42,7 @@ Check that your selected addons support your game flavor and version.
 Preview changes for a game directory containing `Interface/AddOns`:
 
 ```sh
-nix run .#installer -- --game-path /path/to/WoW/_classic_ --config ./addons.nix
+nix run .#installer -- --game-path /path/to/WoW/_forever_ --config ./addons.nix
 ```
 
 The preview lists these operations:
@@ -55,13 +55,13 @@ The preview lists these operations:
 Apply the selection:
 
 ```sh
-nix run .#installer -- --game-path /path/to/WoW/_classic_ --config ./addons.nix --apply
+nix run .#installer -- --game-path /path/to/WoW/_forever_ --config ./addons.nix --apply
 ```
 
 Recover an interrupted installation:
 
 ```sh
-nix run .#installer -- --game-path /path/to/WoW/_classic_ --recover
+nix run .#installer -- --game-path /path/to/WoW/_forever_ --recover
 ```
 
 ## Storage
