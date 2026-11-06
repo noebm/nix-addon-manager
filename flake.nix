@@ -13,7 +13,7 @@
       };
     in
     {
-      packages.${system} = import ./pkgs { inherit pkgs; };
+      packages.${system} = (import ./pkgs { inherit pkgs; }) // (import ./addons { inherit pkgs; });
       addonModules.spoken = ./modules/spoken.nix;
       formatter.${system} = pkgs.nixfmt-tree;
     };

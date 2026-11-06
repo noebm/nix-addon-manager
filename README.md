@@ -1,29 +1,25 @@
 # nix-addon-manager
 
-Nix packages and Home Manager modules for World of Warcraft addon bundles.
-Currently provides Spoken with all English voice packs, pinned to GitHub releases.
+Nix packages and configurable modules for World of Warcraft addons.
 
-Build with `nix build .#spoken-english`.
+Tool packages live under `pkgs/`; addon packages live under `addons/`. Both
+collections are exposed through the flake's standard `packages` output.
 
-Import `inputs.nix-addon-manager.homeManagerModules.spoken` and configure:
+Build Spoken with `nix build .#spoken-english`.
 
-```nix
-programs.spoken = {
-  enable = true;
-  gamePath = "/home/user/Games/World of Warcraft/_forever_";
-};
-```
+Ordinary addons and fixed bundles use packages. Modules are for configuration
+choices such as language or optional voice packs. The Spoken module is available
+as `addonModules.spoken`; only English (`en`) is currently packaged.
 
-The module links individual addon folders into `Interface/AddOns`. Existing
-folders must be backed up and moved aside before activation. Other addons and
-WTF settings remain outside its ownership. Keep Spoken outside other addon
-managers to avoid competing updates.
+Packages expose `pname`, `version`, `addonDirectories`, and their addon content
+under `share/wow-addons`. Consumers decide how to install that content.
 
-The package includes game-derived audio outside the code's MIT license and is
-marked unfree. The standalone flake allows this package; consuming Home Manager
-configurations must allow it in their own nixpkgs configuration.
+Releases and hashes are pinned in addon package definitions; `flake.lock` pins
+nixpkgs. Spoken includes game-derived audio outside the code's MIT license and is
+marked unfree. Consumers must allow it in their nixpkgs configuration.
 
-No imperative installer is implemented yet.
+## Supported addons
 
-See [AGENTS.md](AGENTS.md) for project direction, the intended bundle model, and
-requirements for a possible imperative installer.
+| Addon | Package | Notes |
+| --- | --- | --- |
+| Spoken | `spoken-english` | All English voice packs; unfree audio |
