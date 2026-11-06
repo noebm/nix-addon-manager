@@ -24,11 +24,15 @@ Build an individual package:
 nix build .#<package-name>
 ```
 
-Create an `addons.nix` configuration selecting your addons:
+Create an `addons.nix` configuration selecting your addons. For example, to install
+Spoken and AtlasLoot Classic Forever together:
 
 ```nix
 { addons, ... }:
-[ addons.<package-name> ]
+[
+  addons.spoken-english
+  addons.atlasloot-classic-forever
+]
 ```
 
 The configuration receives `pkgs`, `lib`, `addons`, and `modules`. It describes
