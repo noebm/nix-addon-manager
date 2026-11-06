@@ -64,6 +64,28 @@ Recover an interrupted installation:
 nix run .#installer -- --game-path /path/to/WoW/_classic_ --recover
 ```
 
+## Storage
+
+Addon files and generated manifests live in the Nix store. The game's addon
+directory contains links to the addon files. Your `addons.nix` configuration stays
+where you saved it.
+
+Other installer files live under
+`$XDG_STATE_HOME/nix-addon-manager/<installation-id>/`, defaulting to
+`~/.local/state/nix-addon-manager/<installation-id>/`. Each game installation has
+its own directory. To change this location, set `XDG_STATE_HOME` to an absolute
+path outside the game directory.
+
+| Location within that directory | Contents |
+| --- | --- |
+| `state.json` | Installed selection and managed directory ownership. |
+| `lock` | Lock file preventing concurrent operations. |
+| `transaction/` | Pending installation journal, staged links, and recovery links. |
+| `backups/<transaction-id>/` | Previous addon links retained after changes. |
+| `roots/<generation-id>` | Nix GC roots keeping manifests and addon generations available. |
+
+Backups and GC roots are retained; automatic pruning is not implemented.
+
 ## Supported addons
 
 | Addon | Package | Notes |
