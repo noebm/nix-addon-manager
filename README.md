@@ -5,7 +5,7 @@ Nix packages and configurable modules for World of Warcraft addons.
 Tool packages live under `pkgs/`; addon packages live under `addons/`. Both
 collections are exposed through the flake's standard `packages` output.
 
-Build Spoken with `nix build .#spoken-english`.
+Build a selected package with `nix build .#<package-name>`.
 
 Ordinary addons and fixed bundles use packages. Modules are for configuration
 choices such as language or optional voice packs. The Spoken module is available
@@ -22,4 +22,5 @@ marked unfree. Consumers must allow it in their nixpkgs configuration.
 
 | Addon | Package | Notes |
 | --- | --- | --- |
+| AtlasLoot Classic Forever | `atlasloot-classic-forever` | BiS tooltips; WoW Forever 1.60.1 (interface 16001) |
 | Spoken | `spoken-english` | All English voice packs; unfree audio |
