@@ -7,7 +7,12 @@ let
   flake = builtins.getFlake repository;
   pkgs = import flake.inputs.nixpkgs {
     system = builtins.currentSystem;
-    config.allowUnfreePredicate = pkg: flake.inputs.nixpkgs.lib.getName pkg == "spoken-english";
+    config.allowUnfreePredicate =
+      pkg:
+      builtins.elem (flake.inputs.nixpkgs.lib.getName pkg) [
+        "books-on-map-forever"
+        "spoken-english"
+      ];
   };
   packages = import (builtins.toPath configuration) {
     inherit pkgs;
