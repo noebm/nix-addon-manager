@@ -7,12 +7,12 @@
 
 stdenvNoCC.mkDerivation {
   pname = "atlasloot-classic-forever";
-  version = "1.3.1-061126-16001";
+  version = "1.0.1";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9467/191/AtlasLoot-Classic-Forever-1.3.1-061126-16001.zip";
-      hash = "sha256-+SGMcIIjp1mjW98fG8rP0KAaXXXNPbQgRP+oN0txeWQ=";
+      url = "https://edge.forgecdn.net/files/9484/783/AtlasLoot-Classic-Forever-1.3.2-071126-16001.zip";
+      hash = "sha256-LDt7NObKSwuJkMoesSNT3zX43A6kx4+v3CRYSBhGAas=";
     })
   ];
 

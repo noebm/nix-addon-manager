@@ -7,12 +7,12 @@
 
 stdenvNoCC.mkDerivation {
   pname = "dungeonjournal";
-  version = "1.7.0";
+  version = "1.7.2";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9473/650/ForeverDungeonJournal-1.7.0.zip";
-      hash = "sha256-DQMDQl3aKr4q7qNAeWc931HBdPyL52RujI7KNh8SnJo=";
+      url = "https://edge.forgecdn.net/files/9494/110/ForeverDungeonJournal-1.7.2.zip";
+      hash = "sha256-KHtKur9c21yVokw+EldcLzhgxRhEgDKMtPwyYxap1bk=";
     })
   ];
 

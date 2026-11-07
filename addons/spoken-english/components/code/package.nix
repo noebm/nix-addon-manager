@@ -5,12 +5,12 @@
 
 callPackage ../../component.nix {
   pname = "spoken";
-  version = "3.8.0";
+  version = "3.8.3";
 
   srcs = [
     (fetchurl {
-      url = "https://github.com/rusty-key/spoken-wow/releases/download/spoken/v3.8.0/Spoken-3.8.0.zip";
-      hash = "sha256-HR1MlO1cIMgqp0fe8ADGSAMp7rOrCsukq8q66Z2CGrs=";
+      url = "https://github.com/rusty-key/spoken-wow/releases/download/spoken/v3.8.3/Spoken-3.8.3.zip";
+      hash = "sha256-s8ggNlvT9PMyQIUSC0vE3D0wp38wF+9sacRU+C4QHcc=";
     })
   ];
 
