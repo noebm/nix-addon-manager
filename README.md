@@ -97,3 +97,4 @@ Backups and GC roots are retained; automatic pruning is not implemented.
 | AtlasLoot Classic Forever | `atlasloot-classic-forever` | BiS tooltips; WoW Forever 1.60.1 (interface 16001) |
 | Books on Map Forever | `books-on-map-forever` | Library book tracking; WoW Forever 1.60.1 (interface 16001); unfree |
 | Spoken | `spoken-english` | All English voice packs; unfree audio |
+| DungeonJournal | `dungeonjournal` | Dungeon boss loot and quests; WoW Forever 1.60.1 (interface 16001); unfree |
