@@ -98,3 +98,32 @@ Backups and GC roots are retained; automatic pruning is not implemented.
 | Books on Map Forever | `books-on-map-forever` | Library book tracking; WoW Forever 1.60.1 (interface 16001); unfree |
 | Spoken | `spoken-english` | All English voice packs; unfree audio |
 | DungeonJournal | `dungeonjournal` | Dungeon boss loot and quests; WoW Forever 1.60.1 (interface 16001); unfree |
+
+## Updating releases
+
+The updater checks for new stable releases and updates pinned versions and hashes.
+
+Set `CURSEFORGE_API_KEY` for CurseForge addons. Spoken needs no key;
+`GITHUB_TOKEN` is optional for authenticated GitHub requests.
+
+Preview updates in a writable checkout:
+
+```sh
+nix run .#updater -- --repository .
+```
+
+Build and validate updates, then write the pins:
+
+```sh
+nix run .#updater -- --repository . --apply
+```
+
+Use `--addon <package-name>` to select one addon.
+
+### GitHub Actions
+
+The `Update addons` workflow builds and validates updates,
+then commits changed pins directly to the default branch.
+
+Add `CURSEFORGE_API_KEY` as a repository Actions secret and allow the workflow's
+`GITHUB_TOKEN` to push to the default branch.

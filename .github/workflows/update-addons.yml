@@ -1,0 +1,64 @@
+name: Update addons
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-addons
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Check CurseForge credentials
+        env:
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+        run: |
+          if [ -z "$CURSEFORGE_API_KEY" ]; then
+            echo '::error::Set the CURSEFORGE_API_KEY repository secret to enable addon updates.'
+            exit 1
+          fi
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: python3 -m unittest discover -s tests
+
+      - name: Update and build addon packages
+        env:
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix run .#updater -- --repository . --apply
+
+      - name: Check flake
+        run: nix flake check --no-write-lock-file
+
+      - name: Commit and push updated pins
+        run: |
+          git add -- ':(glob)addons/**/package.nix'
+          if git diff --cached --quiet; then
+            echo 'No addon updates found.'
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'addons: update upstream releases'
+          git push origin "HEAD:refs/heads/$DEFAULT_BRANCH"
