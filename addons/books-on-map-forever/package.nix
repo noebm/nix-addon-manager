@@ -7,12 +7,12 @@
 
 stdenvNoCC.mkDerivation {
   pname = "books-on-map-forever";
-  version = "2.2.2";
+  version = "2.2.3";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9488/530/Books_on_map_Foreverv2.2.2.zip";
-      hash = "sha256-2UDOZVqmxrW3X+uPO1Fh9XlvYAWRgJD+84U0TpAjcHo=";
+      url = "https://edge.forgecdn.net/files/9500/18/Books_on_map_Foreverv2.2.3.zip";
+      hash = "sha256-QiZTimpsXCGgY/xUeHiXGzEGOf6iPRyLvYBy8hnXb30=";
     })
   ];
 

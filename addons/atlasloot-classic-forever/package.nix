@@ -11,8 +11,8 @@ stdenvNoCC.mkDerivation {
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9484/783/AtlasLoot-Classic-Forever-1.3.2-071126-16001.zip";
-      hash = "sha256-LDt7NObKSwuJkMoesSNT3zX43A6kx4+v3CRYSBhGAas=";
+      url = "https://edge.forgecdn.net/files/9503/738/AtlasLoot-Classic-Forever-1.3.3-081126-16001.zip";
+      hash = "sha256-Hgs5oLUFUWSbBY0EprEYpaCxmClDkBZIrV/kCpvkF84=";
     })
   ];
 
