@@ -103,6 +103,65 @@ class ArchiveTests(unittest.TestCase):
         }), 16001), ({'Test'}, '2.0'))
 
 
+class DirectoryDiscoveryTests(ArchiveTests):
+    def test_range_discovery_reads_only_part_of_archive(self):
+        data = self.archive({
+            'New/New.toc': '## Interface: 16001\n## Version: 2\n',
+            'New/audio.bin': b'x' * 300000,
+        }).getvalue()
+        transferred = []
+
+        def respond(request, **kwargs):
+            start, end = map(int, request.get_header('Range')[6:].split('-'))
+            end = min(end, len(data) - 1)
+            response = io.BytesIO(data[start:end + 1])
+            response.url = request.full_url
+            response.status = 206
+            response.headers = {'Content-Range': f'bytes {start}-{end}/{len(data)}'}
+            transferred.append(end - start + 1)
+            return response
+
+        with patch.object(updater, 'urlopen', side_effect=respond):
+            self.assertEqual(updater.discover_directories('https://example.org/addon.zip', 16001),
+                             ({'New'}, '2'))
+        self.assertLess(sum(transferred), len(data) // 2)
+
+    def test_unsupported_ranges_fall_back_to_full_download(self):
+        response = io.BytesIO(b'ignored range')
+        response.url = 'https://example.org/addon.zip'
+        response.status = 200
+        response.headers = {}
+        with patch.object(updater, 'urlopen', return_value=response):
+            with patch.object(updater, 'download', return_value=('hash', {'New'}, '2')):
+                self.assertEqual(updater.discover_directories(response.url, None), ({'New'}, '2'))
+
+    def test_invalid_partial_responses_fall_back(self):
+        for headers, body in (({'Content-Range': 'bytes 1-1/10'}, b'x'),
+                              ({'Content-Range': 'bytes 0-0/10'}, b''),
+                              ({}, b'x')):
+            response = io.BytesIO(body)
+            response.url = 'https://example.org/addon.zip'
+            response.status = 206
+            response.headers = headers
+            with self.subTest(headers=headers, body=body):
+                with patch.object(updater, 'urlopen', return_value=response):
+                    with patch.object(updater, 'download', return_value=('hash', {'New'}, '2')):
+                        self.assertEqual(updater.discover_directories(response.url, None), ({'New'}, '2'))
+
+    def test_rejected_range_falls_back(self):
+        error = updater.HTTPError('https://example.org/addon.zip', 501, 'Unsupported', {}, None)
+        with patch.object(updater, 'urlopen', side_effect=error):
+            with patch.object(updater, 'download', return_value=('hash', {'New'}, '2')):
+                self.assertEqual(updater.discover_directories(error.url, None), ({'New'}, '2'))
+
+    def test_partial_discovery_rejects_insecure_redirect(self):
+        response = io.BytesIO(b'x')
+        response.url = 'http://example.org/addon.zip'
+        with patch.object(updater, 'urlopen', return_value=response):
+            with self.assertRaisesRegex(ValueError, 'redirected'):
+                updater.discover_directories('https://example.org/addon.zip', None)
+
+
 class DownloadTests(unittest.TestCase):
     def test_download_hashes_complete_archive_with_or_without_content_length(self):
         archive = io.BytesIO()
@@ -230,7 +289,7 @@ class ProposalTests(unittest.TestCase):
         self.assertEqual(result, text.replace(old_url, new_url).replace(
             old_hash, 'sha256-newhash').replace(f'version = "{old_version}"', f'version = "{new_version}"'))
 
-    def test_github_digest_avoids_download_and_converts_to_sri(self):
+    def test_github_digest_discovers_directories_and_converts_to_sri(self):
         root = Path(__file__).resolve().parents[1]
         text = (root / 'addons/spoken-english/components/code/package.nix').read_text()
         version = updater.VERSION.search(text)[1]
@@ -239,9 +298,10 @@ class ProposalTests(unittest.TestCase):
         latest['assets'][0]['digest'] = 'sha256:' + 'ab' * 32
         expected = 'sha256-' + base64.b64encode(bytes.fromhex('ab' * 32)).decode()
         with patch.object(updater, 'pages', return_value=[release(version, '2026-01-01'), latest]):
-            with patch.object(updater, 'download') as download:
-                result = updater.propose('spoken', text)
-                download.assert_not_called()
+            with patch.object(updater, 'discover_directories', return_value=({'New'}, None)):
+                with patch.object(updater, 'download') as download:
+                    result = updater.propose('spoken', text)
+                    download.assert_not_called()
         self.assertIn(expected, result)
         self.assertIn(f'version = "{newer}"', result)
 
@@ -265,7 +325,7 @@ class ProposalTests(unittest.TestCase):
                 self.assertEqual(updater.propose('spoken', text), text)
                 download.assert_not_called()
 
-    def test_changed_component_directories_are_rejected(self):
+    def test_changed_component_directories_are_recorded(self):
         root = Path(__file__).resolve().parents[1]
         text = (root / 'addons/spoken-english/components/code/package.nix').read_text()
         version = updater.VERSION.search(text)[1]
@@ -275,8 +335,8 @@ class ProposalTests(unittest.TestCase):
         with patch.object(updater, 'pages', return_value=[
                 release(version, '2026-01-01'), release(newer, '2026-02-01')]):
             with patch.object(updater, 'download', return_value=('sha256-new', {'Changed'}, '3.9.0')):
-                with self.assertRaisesRegex(ValueError, 'directories changed'):
-                    updater.propose('spoken', text)
+                result = updater.propose('spoken', text)
+                self.assertIn('addonDirectories = [\n      \"Changed\"\n    ];', result)
 
     def test_components_share_release_list_within_each_run(self):
         root = Path(__file__).resolve().parents[1]

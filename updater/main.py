@@ -5,6 +5,7 @@ import base64
 import difflib
 import fcntl
 import hashlib
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -15,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.error import HTTPError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 import zipfile
@@ -99,7 +101,98 @@ def curse_candidate(current, files):
     return max(candidates, key=lambda file: (file['fileDate'], file['id']), default=current)
 
 
-def validate_archive(source, interface):
+class RangeUnsupported(Exception):
+    """The server cannot provide a consistent seekable byte stream."""
+
+
+class RemoteZip(io.RawIOBase):
+    """Seekable HTTP reader for ZIP directory and TOC discovery."""
+
+    def __init__(self, url):
+        super().__init__()
+        if urlparse(url).scheme != 'https':
+            raise ValueError('Release downloads must use HTTPS')
+        self.url = url
+        self.position = 0
+        self.size = None
+        self.validator = None
+        self._range(0, 0)
+
+    def _range(self, start, end):
+        headers = {'User-Agent': 'nix-addon-manager-updater',
+                   'Range': f'bytes={start}-{end}', 'Accept-Encoding': 'identity'}
+        if self.validator:
+            headers['If-Range'] = self.validator
+
+        try:
+            with urlopen(Request(self.url, headers=headers), timeout=60) as response:
+                if urlparse(response.url).scheme != 'https':
+                    raise ValueError('Release download redirected away from HTTPS')
+                match = re.fullmatch(r'bytes (\d+)-(\d+)/(\d+)',
+                                     response.headers.get('Content-Range', ''))
+                if response.status != 206 or not match:
+                    raise RangeUnsupported()
+                first, last, size = map(int, match.groups())
+                if (first != start or last != min(end, size - 1)
+                        or (self.size is not None and size != self.size)):
+                    raise RangeUnsupported()
+                validator = response.headers.get('ETag') or response.headers.get('Last-Modified')
+                if self.validator and validator != self.validator:
+                    raise RangeUnsupported()
+                self.size = size
+                self.validator = validator
+                data = response.read(last - first + 2)
+                if len(data) != last - first + 1:
+                    raise RangeUnsupported()
+                return data
+        except HTTPError as error:
+            if error.code in (400, 405, 416, 501):
+                error.close()
+                raise RangeUnsupported() from error
+            raise
+
+    def seekable(self):
+        return True
+
+    def tell(self):
+        return self.position
+
+    def seek(self, offset, whence=0):
+        position = offset + (self.position if whence == 1 else self.size if whence == 2 else 0)
+        if whence not in (0, 1, 2) or position < 0:
+            raise ValueError('Invalid ZIP seek')
+        self.position = position
+        return position
+
+    def read(self, size=-1):
+        end = self.size if size < 0 else min(self.size, self.position + size)
+        if end <= self.position:
+            return b''
+        data = self._range(self.position, end - 1)
+        self.position = end
+        return data
+
+
+def discover_directories(url, interface):
+    """Read ZIP paths and TOCs through ranges, falling back when unsupported.
+
+    Discovery is not full archive validation or cryptographic verification.
+    """
+    try:
+        with RemoteZip(url) as source:
+            return validate_archive(source, interface, check_crc=False)
+    except RangeUnsupported:
+        _, directories, version = download(url, interface)
+        return directories, version
+
+
+def directory_declaration(directories):
+    """Render a deterministic pinned directory declaration."""
+    return 'addonDirectories = [\n' + ''.join(
+        f'      {nix_string(name)}\n' for name in sorted(directories)) + '    ];'
+
+
+def validate_archive(source, interface, *, check_crc=True):
     directories = set()
     versions = []
     toc_count = 0
@@ -125,7 +218,7 @@ def validate_archive(source, interface):
                 version = re.search(r'^##\s*Version\s*:\s*(.+)$', content, re.M | re.I)
                 if version:
                     versions.append(version[1].strip())
-        bad = archive.testzip()
+        bad = archive.testzip() if check_crc else None
         if bad:
             raise ValueError(f'Corrupt archive entry: {bad}')
     if not directories or not toc_count:
@@ -236,12 +329,9 @@ def propose(name, text, github_releases=None, *, pending_validation=None):
         print(f'Checking {name}: {candidate}', flush=True)
         if candidate in digests:
             new_hash = digests[candidate]
-            component_directories, toc_version = expected, None
-            if len(candidates) != 1:
-                # Multi-source packages still require a combined directory check.
-                new_hash, component_directories, toc_version = download(candidate, interface)
-            elif pending_validation is not None:
-                pending_validation.append((candidate, new_hash, interface, expected))
+            component_directories, toc_version = discover_directories(candidate, interface)
+            if pending_validation is not None:
+                pending_validation.append((candidate, new_hash, interface, component_directories))
         else:
             new_hash, component_directories, toc_version = download(candidate, interface)
         if candidate == url and new_hash != old_hash:
@@ -256,8 +346,9 @@ def propose(name, text, github_releases=None, *, pending_validation=None):
         replacements.append((source.start(), source.end(),
                              f'url = {nix_string(candidate)};\n      hash = {nix_string(new_hash)};'))
     if directories != expected:
-        raise ValueError(f'Addon directories changed in {name}: expected {sorted(expected)}, got {sorted(directories)}')
-    for start, end, replacement in reversed(replacements):
+        replacements.append((directory_block.start(), directory_block.end(),
+                             directory_declaration(directories)))
+    for start, end, replacement in sorted(replacements, reverse=True):
         text = text[:start] + replacement + text[end:]
     return VERSION.sub(lambda match: f'  version = {nix_string(package_version)};', text)
 
