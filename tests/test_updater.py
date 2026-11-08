@@ -79,6 +79,23 @@ class ArchiveTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             updater.validate_archive(data, None)
 
+    def test_windows_paths_are_normalized_for_directories_and_tocs(self):
+        archive = self.archive({
+            'AtlasBIStooltips\\': '',
+            'AtlasBIStooltips\\AtlasBIStooltips.toc': '## Interface: 16001\n## Version: 2.0\n',
+            'AtlasBIStooltips\\AtlasBIStooltips.lua': 'code',
+            'AtlasBIStooltips/subdir\\file.lua': 'more code',
+        })
+        self.assertEqual(updater.validate_archive(archive, 16001), ({'AtlasBIStooltips'}, '2.0'))
+
+    def test_windows_paths_cannot_escape_staging(self):
+        for name in ('..\\WTF\\config', 'Test\\..\\..\\WTF/config',
+                     '\\absolute\\file', '\\\\server\\share\\file',
+                     'C:\\Test\\file', 'C:Test\\file'):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValueError, 'Unsafe archive entry'):
+                    updater.validate_archive(self.archive({name: 'bad'}), None)
+
     def test_archive_reports_directories_and_version(self):
         self.assertEqual(updater.validate_archive(self.archive({
             'Test/Test.toc': '## Interface: 16001\n## Version: 2.0\n',

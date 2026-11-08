@@ -105,15 +105,15 @@ def validate_archive(source, interface):
     toc_count = 0
     with zipfile.ZipFile(source) as archive:
         for entry in archive.infolist():
-            name = entry.filename
+            name = entry.filename.replace("\\", "/")
             path = PurePosixPath(name)
             mode = entry.external_attr >> 16
-            if (path.is_absolute() or '..' in path.parts or '\\' in name
+            if (path.is_absolute() or '..' in path.parts
                     or not path.parts or ':' in path.parts[0]
                     or '\x00' in name or stat.S_ISLNK(mode)
                     or stat.S_IFMT(mode) not in (0, stat.S_IFREG, stat.S_IFDIR)):
                 raise ValueError(f'Unsafe archive entry: {name}')
-            if not entry.is_dir() and len(path.parts) < 2:
+            if not name.endswith('/') and len(path.parts) < 2:
                 raise ValueError(f'File outside addon directory: {name}')
             directories.add(path.parts[0])
             if name.lower().endswith('.toc') and len(path.parts) == 2:

@@ -2,7 +2,7 @@
   lib,
   stdenvNoCC,
   fetchurl,
-  unzip,
+  libarchive,
 }:
 
 stdenvNoCC.mkDerivation {
@@ -16,7 +16,7 @@ stdenvNoCC.mkDerivation {
     })
   ];
 
-  nativeBuildInputs = [ unzip ];
+  nativeBuildInputs = [ libarchive ];
   dontUnpack = true;
   dontBuild = true;
 
@@ -44,7 +44,7 @@ stdenvNoCC.mkDerivation {
 
     mkdir -p "$out/share/wow-addons"
     for archive in $srcs; do
-      unzip -q "$archive" -d "$out/share/wow-addons"
+      bsdtar -xf "$archive" -s '|\\|/|g' -C "$out/share/wow-addons"
     done
 
     runHook postInstall
