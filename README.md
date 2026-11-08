@@ -4,6 +4,8 @@ Reproducible Nix packages and a declarative installer for World of Warcraft addo
 Select addons in a Nix configuration, preview the changes, and apply them to a
 game installation independently of your host configuration.
 
+The project is still at an early stage; expect some slop.
+
 ## Package structure
 
 - `addons/`: addon packages and fixed bundles.
