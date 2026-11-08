@@ -16,8 +16,10 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 from typing import TextIO
 import uuid
+import zipfile
 
 from .schemas import (
     DirectoryChange,
@@ -340,9 +342,35 @@ def nix_manifest(repository: Path, configuration: Path, *, build: bool,
     return Manifest.from_dict(result)
 
 
+def export_zip(manifest: Manifest, destination: Path) -> None:
+    """Publish a compressed, standalone addon set without replacing existing files."""
+    selected = selected_directories(manifest)
+    sources = {
+        name: Path(owner.path) / "share/wow-addons" / name
+        for name, owner in selected.items()
+    }
+    for source in sources.values():
+        validate_tree(source)
+
+    with tempfile.TemporaryDirectory(prefix=".addon-export-", dir=destination.parent) as temporary:
+        archive_path = Path(temporary) / "addons.zip"
+        with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED,
+                             strict_timestamps=False) as archive:
+            for name, source in sorted(sources.items()):
+                archive.write(source, name)
+                for path in sorted(source.rglob("*")):
+                    archive.write(path, str(Path(name) / path.relative_to(source)))
+
+        # Publish only a complete archive, and never overwrite another export.
+        os.link(archive_path, destination)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--game-path", required=True, type=Path)
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--game-path", type=Path)
+    target.add_argument("--export-zip", type=Path, metavar="PATH",
+                        help="Build and export the selection as a compressed ZIP")
     parser.add_argument("--config", type=Path, help="Nix function returning an addon package list")
     parser.add_argument("--repository", type=Path, default=Path(__file__).resolve().parents[1])
     action = parser.add_mutually_exclusive_group()
@@ -352,7 +380,24 @@ def main():
     if not args.recover and args.config is None:
         parser.error("--config is required unless using --recover")
 
+    if args.export_zip is not None and (args.apply or args.recover):
+        parser.error("--export-zip cannot be combined with --apply or --recover")
+
     try:
+        if args.export_zip is not None:
+            repository = args.repository.resolve(strict=True)
+            configuration = args.config.resolve(strict=True)
+            # Keep the build rooted until all package contents have been archived.
+            with tempfile.TemporaryDirectory(prefix="addon-export-") as temporary:
+                manifest = nix_manifest(repository, configuration, build=True,
+                                        out_link=Path(temporary) / "manifest")
+                export_zip(manifest, args.export_zip.absolute())
+            for package in manifest.packages:
+                print(f"exported: {package.name} {package.version}")
+
+            print(f"Export complete: {args.export_zip}")
+            return
+
         installation = Installation(args.game_path)
         with installation.lock() as locked:
             if args.recover:

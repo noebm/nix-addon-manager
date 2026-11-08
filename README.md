@@ -62,6 +62,17 @@ Apply the selection:
 nix run .#installer -- --game-path /path/to/WoW/_forever_ --config ./addons.nix --apply
 ```
 
+Export the same selection as a compressed ZIP without a game directory:
+
+```sh
+nix run .#installer -- --config ./addons.nix --export-zip ./addons.zip
+```
+
+The export builds the pinned packages and includes actual files, with addon folders
+at the archive root. Extract it into `Interface/AddOns` on the target machine.
+No installation state is created. The destination must not already exist;
+`--export-zip` cannot be combined with `--game-path`, `--apply`, or `--recover`.
+
 Recover an interrupted installation:
 
 ```sh

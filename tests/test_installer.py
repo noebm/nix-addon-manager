@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 from installer import main as installer
@@ -68,6 +69,67 @@ class SchemaTests(unittest.TestCase):
             with self.subTest(schema=schema.__name__):
                 with self.assertRaisesRegex(ValueError, "schema"):
                     schema.from_dict({"schema": 2})
+
+
+class ExportTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.source = self.root / "package/share/wow-addons/Test"
+        self.source.mkdir(parents=True)
+        (self.source / "Test.toc").write_text("addon content")
+        (self.source / "empty").mkdir()
+        self.manifest = schemas.Manifest.from_dict({"schema": 1, "packages": [{
+            "name": "test", "version": "1", "path": str(self.root / "package"),
+            "directories": ["Test"],
+        }]})
+        self.output = self.root / "addons.zip"
+
+    def test_export_cli_without_game_path(self):
+        config = self.root / "addons.nix"
+        config.touch()
+        with patch("sys.argv", ["installer", "--config", str(config),
+                                "--export-zip", str(self.output)]):
+            with patch.object(installer, "nix_manifest", return_value=self.manifest):
+                with patch.object(installer, "Installation", side_effect=AssertionError("game accessed")):
+                    with patch("sys.stdout", new_callable=StringIO) as output:
+                        installer.main()
+
+        self.assertEqual(output.getvalue().splitlines(), [
+            "exported: test 1",
+            f"Export complete: {self.output}",
+        ])
+        with zipfile.ZipFile(self.output) as archive:
+            self.assertEqual(archive.read("Test/Test.toc"), b"addon content")
+            self.assertIn("Test/empty/", archive.namelist())
+            self.assertEqual(archive.getinfo("Test/Test.toc").compress_type, zipfile.ZIP_DEFLATED)
+
+    def test_export_rejects_conflicts_and_unsafe_content(self):
+        duplicate = schemas.Manifest(packages=self.manifest.packages * 2)
+        with self.assertRaisesRegex(ValueError, "ownership"):
+            installer.export_zip(duplicate, self.output)
+
+        (self.source / "unsafe").symlink_to(self.root)
+        with self.assertRaisesRegex(ValueError, "Unsafe"):
+            installer.export_zip(self.manifest, self.output)
+
+        self.assertFalse(self.output.exists())
+
+    def test_export_preserves_existing_output(self):
+        self.output.write_bytes(b"existing")
+        with self.assertRaises(FileExistsError):
+            installer.export_zip(self.manifest, self.output)
+
+        self.assertEqual(self.output.read_bytes(), b"existing")
+
+    def test_failed_export_leaves_no_partial_archive(self):
+        with patch.object(zipfile.ZipFile, "write", side_effect=OSError("interrupted")):
+            with self.assertRaises(OSError):
+                installer.export_zip(self.manifest, self.output)
+
+        self.assertFalse(self.output.exists())
+        self.assertEqual(sorted(p.name for p in self.root.iterdir()), ["package"])
 
 
 class InstallationTests(unittest.TestCase):
