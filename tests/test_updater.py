@@ -149,6 +149,41 @@ class UpdateTests(unittest.TestCase):
                         updater.update(root, ['test'], apply=True)
                 self.assertEqual(package.read_text(), original)
 
+    def test_digest_archive_is_validated_before_build_and_pin_write(self):
+        import subprocess
+
+        for addon in ('Test', 'Unexpected'):
+            with self.subTest(addon=addon), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                package = root / 'addons/test/package.nix'
+                package.parent.mkdir(parents=True)
+                package.write_text('old\n')
+                archive = root / 'release.zip'
+                with zipfile.ZipFile(archive, 'w') as output:
+                    output.writestr(f'{addon}/{addon}.toc', '## Interface: 16001\n')
+
+                def proposal(*args, pending_validation):
+                    pending_validation.append(('https://example.org/release.zip', 'sha256-test',
+                                               16001, {'Test'}))
+                    return 'new\n'
+
+                prefetched = subprocess.CompletedProcess([], 0, stdout=updater.json.dumps({
+                    'storePath': str(archive)}))
+                with patch.object(updater, 'propose', side_effect=proposal):
+                    with patch.object(updater.subprocess, 'run', return_value=prefetched) as run:
+                        if addon == 'Test':
+                            updater.update(root, ['test'], apply=True)
+                            self.assertEqual(run.call_count, 2)
+                            self.assertEqual(package.read_text(), 'new\n')
+                        else:
+                            with self.assertRaisesRegex(ValueError, 'directories changed'):
+                                updater.update(root, ['test'], apply=True)
+                            self.assertEqual(run.call_count, 1)
+                            self.assertEqual(package.read_text(), 'old\n')
+                        self.assertEqual(run.call_args_list[0].args[0], [
+                            'nix', 'store', 'prefetch-file', '--json', '--hash', 'sha256-test',
+                            'https://example.org/release.zip'])
+
     def test_successful_build_applies_pins_and_rejects_concurrent_edits(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -194,6 +229,31 @@ class ProposalTests(unittest.TestCase):
                 download.assert_called_once_with(new_url, None)
         self.assertEqual(result, text.replace(old_url, new_url).replace(
             old_hash, 'sha256-newhash').replace(f'version = "{old_version}"', f'version = "{new_version}"'))
+
+    def test_github_digest_avoids_download_and_converts_to_sri(self):
+        root = Path(__file__).resolve().parents[1]
+        text = (root / 'addons/spoken-english/components/code/package.nix').read_text()
+        version = updater.VERSION.search(text)[1]
+        newer = version + '.1'
+        latest = release(newer, '2026-02-01')
+        latest['assets'][0]['digest'] = 'sha256:' + 'ab' * 32
+        expected = 'sha256-' + base64.b64encode(bytes.fromhex('ab' * 32)).decode()
+        with patch.object(updater, 'pages', return_value=[release(version, '2026-01-01'), latest]):
+            with patch.object(updater, 'download') as download:
+                result = updater.propose('spoken', text)
+                download.assert_not_called()
+        self.assertIn(expected, result)
+        self.assertIn(f'version = "{newer}"', result)
+
+    def test_malformed_github_digest_is_rejected(self):
+        root = Path(__file__).resolve().parents[1]
+        text = (root / 'addons/spoken-english/components/code/package.nix').read_text()
+        version = updater.VERSION.search(text)[1]
+        latest = release(version + '.1', '2026-02-01')
+        latest['assets'][0]['digest'] = 'sha256:invalid'
+        with patch.object(updater, 'pages', return_value=[release(version, '2026-01-01'), latest]):
+            with self.assertRaisesRegex(ValueError, 'digest'):
+                updater.propose('spoken', text)
 
     def test_unchanged_component_does_not_download(self):
         root = Path(__file__).resolve().parents[1]
@@ -246,7 +306,7 @@ class ProposalTests(unittest.TestCase):
             with patch.object(updater, 'propose', return_value='new pins\n') as propose:
                 with patch.object(updater.subprocess, 'run') as build:
                     updater.update(root, ['bundle'], apply=True)
-                propose.assert_called_once_with('bundle/code', 'old pins\n', {})
+                propose.assert_called_once_with('bundle/code', 'old pins\n', {}, pending_validation=[])
                 self.assertIn('#bundle', build.call_args.args[0][-1])
             self.assertEqual(component.read_text(), 'new pins\n')
             self.assertEqual(bundle.read_text(), 'bundle definition')

@@ -170,7 +170,7 @@ def download(url, interface):
     return 'sha256-' + base64.b64encode(digest.digest()).decode(), directories, version
 
 
-def propose(name, text, github_releases=None):
+def propose(name, text, github_releases=None, *, pending_validation=None):
     sources = list(SOURCE.finditer(text))
     directory_block = re.search(r'addonDirectories = \[(.*?)\];', text, re.S)
     if not sources or not directory_block or len(VERSION.findall(text)) != 1:
@@ -186,6 +186,7 @@ def propose(name, text, github_releases=None):
         github_releases = {}
 
     candidates = []
+    digests = {}
     for index, source in enumerate(sources):
         url, old_hash = source.groups()
         new_version = None
@@ -195,6 +196,14 @@ def propose(name, text, github_releases=None):
             if repository not in github_releases:
                 github_releases[repository] = pages(f'https://api.github.com/repos/{repository}/releases')
             candidate, new_version = github_candidate(url, github_releases[repository])
+            assets = [asset for release in github_releases[repository] for asset in release['assets']
+                      if asset['browser_download_url'] == candidate]
+            digest = assets[0].get('digest') if len(assets) == 1 else None
+            if digest:
+                if not re.fullmatch(r'sha256:[0-9a-fA-F]{64}', digest):
+                    raise ValueError(f'Invalid GitHub asset digest: {candidate}')
+                digests[candidate] = 'sha256-' + base64.b64encode(bytes.fromhex(digest[7:])).decode()
+
         elif url.startswith('https://edge.forgecdn.net/'):
             homepage = re.search(r'homepage = "https://www.curseforge.com/wow/addons/([^"/]+)";', text)
             file_match = re.search(r'/files/(\d+)/(\d+)/', url)
@@ -225,7 +234,16 @@ def propose(name, text, github_releases=None):
         # Validate unchanged components too: the combined directory set must still
         # match the package declaration before publishing updated pins.
         print(f'Checking {name}: {candidate}', flush=True)
-        new_hash, component_directories, toc_version = download(candidate, interface)
+        if candidate in digests:
+            new_hash = digests[candidate]
+            component_directories, toc_version = expected, None
+            if len(candidates) != 1:
+                # Multi-source packages still require a combined directory check.
+                new_hash, component_directories, toc_version = download(candidate, interface)
+            elif pending_validation is not None:
+                pending_validation.append((candidate, new_hash, interface, expected))
+        else:
+            new_hash, component_directories, toc_version = download(candidate, interface)
         if candidate == url and new_hash != old_hash:
             raise ValueError(f'Pinned archive changed upstream: {url}')
         if directories.intersection(component_directories):
@@ -253,6 +271,7 @@ def update(repository, names, *, apply=False):
     proposals = {}
     build_names = set()
     github_releases = {}
+    pending_validation = []
 
     for name in dict.fromkeys(names):
         if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', name):
@@ -262,7 +281,7 @@ def update(repository, names, *, apply=False):
         for path in components or [package]:
             label = f'{name}/{path.parent.name}' if components else name
             original = path.read_text()
-            proposal = propose(label, original, github_releases)
+            proposal = propose(label, original, github_releases, pending_validation=pending_validation)
             if proposal != original:
                 relative = path.relative_to(repository)
                 originals[relative] = original
@@ -276,6 +295,15 @@ def update(repository, names, *, apply=False):
     if not apply:
         print('Preview only; pass --apply to build and write pins')
         return
+
+    for url, digest, interface, expected in pending_validation:
+        result = subprocess.run(['nix', 'store', 'prefetch-file', '--json', '--hash', digest, url],
+                                check=True, capture_output=True, text=True)
+        archive = Path(json.loads(result.stdout)['storePath'])
+        with archive.open('rb') as source:
+            directories, _ = validate_archive(source, interface)
+        if directories != expected:
+            raise ValueError(f'Addon directories changed: expected {sorted(expected)}, got {sorted(directories)}')
 
     with tempfile.TemporaryDirectory(prefix='nix-addon-update-') as directory:
         staged = Path(directory) / 'repository'
