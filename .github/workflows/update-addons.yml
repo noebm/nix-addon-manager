@@ -2,7 +2,8 @@ name: Update addons
 
 on:
   schedule:
-    - cron: '23 4 * * *'
+    - cron: '7 12 * * *'
+      timezone: Europe/Amsterdam
   workflow_dispatch:
 
 permissions:
@@ -19,6 +20,13 @@ jobs:
     env:
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
+      - name: Randomize scheduled start
+        if: github.event_name == 'schedule'
+        run: |
+          delay=$((RANDOM % 901))
+          echo "Waiting ${delay}s before checking for updates."
+          sleep "$delay"
+
       - name: Check out default branch
         uses: actions/checkout@v6
         with:
