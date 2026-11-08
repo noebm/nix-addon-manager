@@ -388,8 +388,8 @@ def update(repository, names, *, apply=False):
         return
 
     for url, digest, interface, expected in pending_validation:
-        result = subprocess.run(['nix', 'store', 'prefetch-file', '--json', '--hash', digest, url],
-                                check=True, capture_output=True, text=True)
+        result = subprocess.run(['nix', 'store', 'prefetch-file', '--json', '--expected-hash', digest, url],
+                                check=True, stdout=subprocess.PIPE, text=True)
         archive = Path(json.loads(result.stdout)['storePath'])
         with archive.open('rb') as source:
             directories, _ = validate_archive(source, interface)

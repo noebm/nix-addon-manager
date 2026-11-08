@@ -240,7 +240,7 @@ class UpdateTests(unittest.TestCase):
                             self.assertEqual(run.call_count, 1)
                             self.assertEqual(package.read_text(), 'old\n')
                         self.assertEqual(run.call_args_list[0].args[0], [
-                            'nix', 'store', 'prefetch-file', '--json', '--hash', 'sha256-test',
+                            'nix', 'store', 'prefetch-file', '--json', '--expected-hash', 'sha256-test',
                             'https://example.org/release.zip'])
 
     def test_successful_build_applies_pins_and_rejects_concurrent_edits(self):
