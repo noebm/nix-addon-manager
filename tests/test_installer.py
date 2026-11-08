@@ -105,6 +105,30 @@ class ExportTests(unittest.TestCase):
             self.assertIn("Test/empty/", archive.namelist())
             self.assertEqual(archive.getinfo("Test/Test.toc").compress_type, zipfile.ZIP_DEFLATED)
 
+    def test_export_cli_rejects_existing_destination_before_build(self):
+        config = self.root / "addons.nix"
+        config.touch()
+        for kind in ("file", "directory", "dangling symlink"):
+            with self.subTest(kind=kind):
+                destination = self.root / kind
+                if kind == "file":
+                    destination.write_bytes(b"existing")
+                elif kind == "directory":
+                    destination.mkdir()
+                else:
+                    destination.symlink_to(self.root / "missing")
+
+                with patch("sys.argv", ["installer", "--config", str(config),
+                                        "--export-zip", str(destination)]):
+                    with patch.object(installer, "nix_manifest") as build:
+                        with patch("sys.stderr", new_callable=StringIO) as error:
+                            with self.assertRaises(SystemExit) as exited:
+                                installer.main()
+
+                self.assertEqual(exited.exception.code, 1)
+                self.assertIn("File exists", error.getvalue())
+                build.assert_not_called()
+
     def test_export_rejects_conflicts_and_unsafe_content(self):
         duplicate = schemas.Manifest(packages=self.manifest.packages * 2)
         with self.assertRaisesRegex(ValueError, "ownership"):

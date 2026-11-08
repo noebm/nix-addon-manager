@@ -386,6 +386,9 @@ def main():
         repository = Path(__file__).resolve().parents[1]
 
         if args.export_zip is not None:
+            if os.path.lexists(args.export_zip):
+                raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), args.export_zip)
+
             configuration = args.config.resolve(strict=True)
             # Keep the build rooted until all package contents have been archived.
             with tempfile.TemporaryDirectory(prefix="addon-export-") as temporary:
