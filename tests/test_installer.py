@@ -181,6 +181,139 @@ class InstallationTests(unittest.TestCase):
         with install.lock() as locked:
             return locked.reconcile(schemas.Manifest.from_dict(self.manifest), apply=apply)
 
+    def client_metadata(self, *, product="wowf", version="1.60.1.70755", parent=True):
+        (self.game / ".flavor.info").write_text("Product Flavor!STRING:0\n" + product + "\n")
+        location = self.game.parent if parent else self.game
+        (location / ".build.info").write_text(
+            "Branch!STRING:0|Active!DEC:1|Version!STRING:0|Product!STRING:0\n"
+            "eu|1|12.0.0.12345|wow\n"
+            f"eu|1|{version}|{product}\n"
+            f"us|0|0.0.0.1|{product}\n"
+        )
+        self.manifest["packages"][0]["compatibility"] = {
+            "flavor": "forever", "version": "1.60.1", "interface": 16001,
+        }
+
+    def test_matching_client_metadata_allows_preview_and_apply(self):
+        for parent in (True, False):
+            with self.subTest(parent=parent):
+                self.client_metadata(parent=parent)
+                self.run_install(False)
+                self.run_install()
+        self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")
+
+    def test_flavor_metadata_accepts_plain_product_and_rejects_ambiguous_rows(self):
+        self.client_metadata()
+        for content in ("wowf\n", "\ufeffProduct Flavor!STRING:0\r\nwowf\r\n"):
+            (self.game / ".flavor.info").write_text(content)
+            self.run_install(False)
+
+        for content in ("Product Flavor!STRING:0\n", "Product Flavor!STRING:0\nwowf\nwow\n",
+                        "Wrong Header\nwowf\n"):
+            (self.game / ".flavor.info").write_text(content)
+            with self.subTest(content=content):
+                with self.assertRaisesRegex(ValueError, "Invalid game product"):
+                    self.run_install(False)
+
+    def test_client_mismatches_block_preview_and_apply_without_changes(self):
+        self.client_metadata()
+        self.run_install()
+        old_state = (self.control / "state.json").read_text()
+        self.new_version()
+        for field, value in (("flavor", "retail"), ("version", "1.60.2"), ("interface", 16002)):
+            self.client_metadata()
+            self.manifest["packages"][0]["compatibility"][field] = value
+            for apply in (False, True):
+                with self.subTest(field=field, apply=apply):
+                    with self.assertRaisesRegex(ValueError, f"test.*{field}"):
+                        self.run_install(apply)
+                    self.assertEqual((self.control / "state.json").read_text(), old_state)
+                    self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")
+                    self.assertFalse((self.control / "transaction").exists())
+
+    def test_outdated_addons_warn_and_allow_preview_and_apply(self):
+        self.client_metadata()
+        self.manifest["packages"][0]["compatibility"].update(version="1.9.0", interface=10900)
+        for apply in (False, True):
+            with self.subTest(apply=apply), patch("sys.stderr", new_callable=StringIO) as warnings:
+                self.assertEqual(self.run_install(apply), {"Test": installer.Operation.INSTALL})
+                self.assertIn("warning: test: out of date", warnings.getvalue())
+                self.assertIn("1.9.0", warnings.getvalue())
+                self.assertIn("16001", warnings.getvalue())
+        self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")
+
+    def test_partial_compatibility_declarations_warn_for_older_targets(self):
+        for compatibility in ({"version": "1.60.0"}, {"interface": 16000}):
+            self.client_metadata()
+            self.manifest["packages"][0]["compatibility"] = compatibility
+            with self.subTest(compatibility=compatibility):
+                with patch("sys.stderr", new_callable=StringIO) as warnings:
+                    self.run_install(False)
+                self.assertIn("out of date", warnings.getvalue())
+
+    def test_matching_client_does_not_warn(self):
+        self.client_metadata()
+        with patch("sys.stderr", new_callable=StringIO) as warnings:
+            self.run_install(False)
+        self.assertEqual(warnings.getvalue(), "")
+
+    def test_missing_or_ambiguous_client_metadata_blocks_declared_compatibility(self):
+        self.client_metadata()
+        (self.game / ".flavor.info").unlink()
+        with self.assertRaisesRegex(ValueError, "flavor.info"):
+            self.run_install()
+        self.client_metadata()
+        (self.root / ".build.info").unlink()
+        with self.assertRaisesRegex(ValueError, "build.info"):
+            self.run_install()
+        self.client_metadata()
+        with (self.root / ".build.info").open("a") as stream:
+            stream.write("eu|1|1.60.2.12345|wowf\n")
+        with self.assertRaisesRegex(ValueError, "ambiguous"):
+            self.run_install()
+        self.assertFalse((self.target / "Test").exists())
+
+    def test_build_metadata_must_match_selected_product(self):
+        self.client_metadata()
+        (self.game / ".flavor.info").write_text("wow_classic_era")
+        with self.assertRaisesRegex(ValueError, "wow_classic_era"):
+            self.run_install()
+        self.assertFalse((self.target / "Test").exists())
+
+    def test_malformed_build_metadata_is_rejected(self):
+        for content in ("wrong header\n", "Active|Version|Product\n1|garbage|wowf\n",
+                        "Active|Version|Product\n1|1.60.1.123|wowf|extra\n"):
+            self.client_metadata()
+            (self.root / ".build.info").write_text(content)
+            with self.subTest(content=content):
+                with self.assertRaises(ValueError):
+                    self.run_install()
+        self.assertFalse((self.target / "Test").exists())
+
+    def test_identical_regional_build_rows_are_not_ambiguous(self):
+        self.client_metadata()
+        with (self.root / ".build.info").open("a") as stream:
+            stream.write("us|1|1.60.1.70755|wowf\n")
+        self.run_install()
+
+    def test_forever_beta_is_identified_by_product_and_version(self):
+        self.client_metadata(product="wow_classic_beta")
+        self.run_install()
+        self.client_metadata(product="wow_classic_beta", version="5.5.0.12345")
+        self.manifest["packages"][0]["compatibility"] = {"flavor": "forever"}
+        with self.assertRaisesRegex(ValueError, "flavor"):
+            self.run_install()
+
+    def test_removal_and_recovery_do_not_require_client_metadata(self):
+        self.client_metadata()
+        self.run_install()
+        (self.game / ".flavor.info").unlink()
+        with installer.Installation(self.game).lock() as locked:
+            locked.recover()
+        self.manifest["packages"] = []
+        self.run_install()
+        self.assertFalse((self.target / "Test").exists())
+
     def test_state_is_external_and_separate_per_game(self):
         self.assertTrue(self.control.is_relative_to(self.root / "state/nix-addon-manager"))
         self.assertFalse((self.game / ".nix-addon-manager").exists())

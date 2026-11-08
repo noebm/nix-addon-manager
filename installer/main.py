@@ -21,6 +21,7 @@ from typing import TextIO
 import uuid
 import zipfile
 
+from .client import validate_compatibility
 from .schemas import (
     DirectoryChange,
     InstallationState,
@@ -246,6 +247,7 @@ class LockedInstallation:
         if installation.transaction.exists():
             raise ValueError("Interrupted transaction found; run --recover first")
 
+        validate_compatibility(installation.game, manifest)
         selected = selected_directories(manifest)
         state = self.state()
         previous = state.directories
