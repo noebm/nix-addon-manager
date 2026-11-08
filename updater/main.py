@@ -424,12 +424,11 @@ def update(repository, names, *, apply=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--repository', type=Path, required=True, help='Writable checkout containing addon packages')
     parser.add_argument('--addon', action='append', help='Addon to update; repeat to select several (default: all)')
     parser.add_argument('--apply', action='store_true', help='Build updated packages and write validated pins')
     args = parser.parse_args()
     try:
-        repository = args.repository.resolve(strict=True)
+        repository = Path.cwd()
         # Lock the checkout directory itself, without creating repository files.
         lock = os.open(repository, os.O_RDONLY)
         try:

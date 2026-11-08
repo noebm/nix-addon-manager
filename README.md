@@ -123,13 +123,13 @@ Set `CURSEFORGE_API_KEY` for CurseForge addons. Spoken needs no key;
 Preview updates in a writable checkout:
 
 ```sh
-nix run .#updater -- --repository .
+nix run .#updater
 ```
 
 Build and validate updates, then write the pins:
 
 ```sh
-nix run .#updater -- --repository . --apply
+nix run .#updater -- --apply
 ```
 
 Use `--addon <package-name>` to select one addon.

@@ -43,7 +43,7 @@ jobs:
         env:
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: nix run .#updater -- --repository . --apply
+        run: nix run .#updater -- --apply
 
       - name: Check flake
         run: nix flake check --no-write-lock-file
