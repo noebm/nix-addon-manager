@@ -1,11 +1,11 @@
 {
   lib,
-  stdenvNoCC,
+  mkAddon,
   fetchurl,
   libarchive,
 }:
 
-stdenvNoCC.mkDerivation {
+mkAddon {
   pname = "atlasloot-classic-forever";
   version = "1.0.1";
 
@@ -17,25 +17,21 @@ stdenvNoCC.mkDerivation {
   ];
 
   nativeBuildInputs = [ libarchive ];
-  dontUnpack = true;
-  dontBuild = true;
 
-  passthru = {
-    addonDirectories = [
-      "AtlasBIStooltips"
-      "AtlasLootClassic"
-      "AtlasLootClassic_Collections"
-      "AtlasLootClassic_Crafting"
-      "AtlasLootClassic_Data"
-      "AtlasLootClassic_DungeonsAndRaids"
-      "AtlasLootClassic_Factions"
-      "AtlasLootClassic_Options"
-      "AtlasLootClassic_PvP"
-    ];
-    gameCompatibility = {
-      flavor = "forever";
-      interface = 16001;
-    };
+  addonDirectories = [
+    "AtlasBIStooltips"
+    "AtlasLootClassic"
+    "AtlasLootClassic_Collections"
+    "AtlasLootClassic_Crafting"
+    "AtlasLootClassic_Data"
+    "AtlasLootClassic_DungeonsAndRaids"
+    "AtlasLootClassic_Factions"
+    "AtlasLootClassic_Options"
+    "AtlasLootClassic_PvP"
+  ];
+  gameCompatibility = {
+    flavor = "forever";
+    interface = 16001;
   };
 
   installPhase = ''
@@ -53,6 +49,5 @@ stdenvNoCC.mkDerivation {
     description = "AtlasLoot loot tables and best-in-slot lists for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/atlasloot-forever";
     license = lib.licenses.gpl2Only;
-    platforms = lib.platforms.all;
   };
 }

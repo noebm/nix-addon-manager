@@ -1,11 +1,10 @@
 {
   lib,
-  stdenvNoCC,
+  mkAddon,
   fetchurl,
-  unzip,
 }:
 
-stdenvNoCC.mkDerivation {
+mkAddon {
   pname = "dungeonjournal";
   version = "1.7.3";
 
@@ -16,33 +15,15 @@ stdenvNoCC.mkDerivation {
     })
   ];
 
-  nativeBuildInputs = [ unzip ];
-  dontUnpack = true;
-  dontBuild = true;
-
-  passthru = {
-    addonDirectories = [ "ForeverDungeonJournal" ];
-    gameCompatibility = {
-      flavor = "forever";
-      interface = 16001;
-    };
+  addonDirectories = [ "ForeverDungeonJournal" ];
+  gameCompatibility = {
+    flavor = "forever";
+    interface = 16001;
   };
-
-  installPhase = ''
-    runHook preInstall
-
-    mkdir -p "$out/share/wow-addons"
-    for archive in $srcs; do
-      unzip -q "$archive" -d "$out/share/wow-addons"
-    done
-
-    runHook postInstall
-  '';
 
   meta = {
     description = "Dungeon boss loot and quest journal for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/dungeonjournal";
     license = lib.licenses.unfree;
-    platforms = lib.platforms.all;
   };
 }

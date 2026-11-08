@@ -1,11 +1,10 @@
 {
   lib,
-  stdenvNoCC,
+  mkAddon,
   fetchurl,
-  unzip,
 }:
 
-stdenvNoCC.mkDerivation {
+mkAddon {
   pname = "books-on-map-forever";
   version = "2.2.3";
 
@@ -16,33 +15,15 @@ stdenvNoCC.mkDerivation {
     })
   ];
 
-  nativeBuildInputs = [ unzip ];
-  dontUnpack = true;
-  dontBuild = true;
-
-  passthru = {
-    addonDirectories = [ "Books_on_map_Forever" ];
-    gameCompatibility = {
-      flavor = "forever";
-      interface = 16001;
-    };
+  addonDirectories = [ "Books_on_map_Forever" ];
+  gameCompatibility = {
+    flavor = "forever";
+    interface = 16001;
   };
-
-  installPhase = ''
-    runHook preInstall
-
-    mkdir -p "$out/share/wow-addons"
-    for archive in $srcs; do
-      unzip -q "$archive" -d "$out/share/wow-addons"
-    done
-
-    runHook postInstall
-  '';
 
   meta = {
     description = "Library book locations and collection tracking for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/books-on-map-forever";
     license = lib.licenses.unfree;
-    platforms = lib.platforms.all;
   };
 }

@@ -1,11 +1,10 @@
 {
   lib,
-  stdenvNoCC,
+  mkAddon,
   fetchurl,
-  unzip,
 }:
 
-stdenvNoCC.mkDerivation {
+mkAddon {
   pname = "angleur";
   version = "2.9.8-AutoEquipFishingRod";
 
@@ -16,33 +15,15 @@ stdenvNoCC.mkDerivation {
     })
   ];
 
-  nativeBuildInputs = [ unzip ];
-  dontUnpack = true;
-  dontBuild = true;
-
-  passthru = {
-    addonDirectories = [ "Angleur" ];
-    gameCompatibility = {
-      flavor = "forever";
-      interface = 16001;
-    };
+  addonDirectories = [ "Angleur" ];
+  gameCompatibility = {
+    flavor = "forever";
+    interface = 16001;
   };
-
-  installPhase = ''
-    runHook preInstall
-
-    mkdir -p "$out/share/wow-addons"
-    for archive in $srcs; do
-      unzip -q "$archive" -d "$out/share/wow-addons"
-    done
-
-    runHook postInstall
-  '';
 
   meta = {
     description = "One-button fishing and automatic fishing gear for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/angleur";
     license = lib.licenses.unfree;
-    platforms = lib.platforms.all;
   };
 }
