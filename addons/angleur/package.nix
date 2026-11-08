@@ -24,7 +24,6 @@ stdenvNoCC.mkDerivation {
     addonDirectories = [ "Angleur" ];
     gameCompatibility = {
       flavor = "forever";
-      version = "1.60.1";
       interface = 16001;
     };
   };

@@ -19,13 +19,17 @@ class SchemaTests(unittest.TestCase):
         data = {"schema": 1, "packages": [{
             "name": "test", "version": "1", "path": "/nix/store/test",
             "directories": ["Test"],
-            "compatibility": {"flavor": "forever", "version": "1.60.1", "interface": 16001},
+            "compatibility": {"flavor": "forever", "interface": 16001},
             "sources": [{"url": "https://example.org/test.zip", "hash": "abc", "hashAlgorithm": "sha256"}],
         }]}
         manifest = schemas.Manifest.from_dict(data)
         self.assertEqual(manifest.packages[0].compatibility.interface, 16001)
         self.assertEqual(manifest.packages[0].sources[0].hashAlgorithm, "sha256")
         self.assertEqual(asdict(manifest), data)
+
+    def test_compatibility_has_one_numeric_version(self):
+        compatibility = schemas.GameCompatibility(flavor="forever", interface=16001)
+        self.assertEqual(asdict(compatibility), {"flavor": "forever", "interface": 16001})
 
     def test_legacy_state_and_journal_decode(self):
         state = schemas.InstallationState.from_dict({
@@ -191,7 +195,7 @@ class InstallationTests(unittest.TestCase):
             f"us|0|0.0.0.1|{product}\n"
         )
         self.manifest["packages"][0]["compatibility"] = {
-            "flavor": "forever", "version": "1.60.1", "interface": 16001,
+            "flavor": "forever", "interface": 16001,
         }
 
     def test_matching_client_metadata_allows_preview_and_apply(self):
@@ -220,7 +224,7 @@ class InstallationTests(unittest.TestCase):
         self.run_install()
         old_state = (self.control / "state.json").read_text()
         self.new_version()
-        for field, value in (("flavor", "retail"), ("version", "1.60.2"), ("interface", 16002)):
+        for field, value in (("flavor", "retail"), ("interface", 16002)):
             self.client_metadata()
             self.manifest["packages"][0]["compatibility"][field] = value
             for apply in (False, True):
@@ -233,17 +237,17 @@ class InstallationTests(unittest.TestCase):
 
     def test_outdated_addons_warn_and_allow_preview_and_apply(self):
         self.client_metadata()
-        self.manifest["packages"][0]["compatibility"].update(version="1.9.0", interface=10900)
+        self.manifest["packages"][0]["compatibility"].update(interface=10900)
         for apply in (False, True):
             with self.subTest(apply=apply), patch("sys.stderr", new_callable=StringIO) as warnings:
                 self.assertEqual(self.run_install(apply), {"Test": installer.Operation.INSTALL})
                 self.assertIn("warning: test: out of date", warnings.getvalue())
-                self.assertIn("1.9.0", warnings.getvalue())
+                self.assertIn("10900", warnings.getvalue())
                 self.assertIn("16001", warnings.getvalue())
         self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")
 
     def test_partial_compatibility_declarations_warn_for_older_targets(self):
-        for compatibility in ({"version": "1.60.0"}, {"interface": 16000}):
+        for compatibility in ({"interface": 16000}, {"flavor": "forever", "interface": 16000}):
             self.client_metadata()
             self.manifest["packages"][0]["compatibility"] = compatibility
             with self.subTest(compatibility=compatibility):

@@ -34,7 +34,6 @@ stdenvNoCC.mkDerivation {
     ];
     gameCompatibility = {
       flavor = "forever";
-      version = "1.60.1";
       interface = 16001;
     };
   };

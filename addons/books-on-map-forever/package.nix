@@ -24,7 +24,6 @@ stdenvNoCC.mkDerivation {
     addonDirectories = [ "Books_on_map_Forever" ];
     gameCompatibility = {
       flavor = "forever";
-      version = "1.60.1";
       interface = 16001;
     };
   };

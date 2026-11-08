@@ -65,14 +65,13 @@ def detect_client(game: Path) -> GameCompatibility:
 
     return GameCompatibility(
         flavor=flavor,
-        version=f"{major}.{minor}.{patch}",
         interface=major * 10000 + minor * 100 + patch,
     )
 
 
 def validate_compatibility(game: Path, manifest: Manifest) -> None:
     """Reject incompatible targets, but warn and allow older addon targets."""
-    fields = ("flavor", "version", "interface")
+    fields = ("flavor", "interface")
     packages = [package for package in manifest.packages
                 if package.compatibility is not None
                 and any(getattr(package.compatibility, field) is not None for field in fields)]
@@ -81,34 +80,23 @@ def validate_compatibility(game: Path, manifest: Manifest) -> None:
 
     client = detect_client(game)
     for package in packages:
-        outdated = []
-        for field in fields:
-            expected = getattr(package.compatibility, field)
-            actual = getattr(client, field)
-            if expected is not None and expected != actual:
-                older = False
-                if field == "version":
-                    if not isinstance(expected, str) or not re.fullmatch(r"\d+\.\d+\.\d+", expected):
-                        raise ValueError(f"{package.name}: invalid compatibility version {expected!r}")
+        compatibility = package.compatibility
+        if compatibility.flavor is not None and compatibility.flavor != client.flavor:
+            raise ValueError(
+                f"{package.name}: targets game flavor {compatibility.flavor}, "
+                f"but the installed client is {client.flavor}"
+            )
 
-                    older = tuple(map(int, expected.split("."))) < tuple(map(int, actual.split(".")))
-                elif field == "interface":
-                    older = expected < actual
+        expected = compatibility.interface
+        actual = client.interface
+        if expected is None or expected == actual:
+            continue
+        if expected > actual:
+            raise ValueError(
+                f"{package.name}: targets game interface {expected}, newer than the installed "
+                f"client ({actual}); update the game or select an older addon release"
+            )
 
-                if older:
-                    outdated.append(f"game {field}: addon targets {expected}, installed client is {actual}")
-                    continue
-
-                if field in ("version", "interface"):
-                    raise ValueError(
-                        f"{package.name}: targets game {field} {expected}, newer than the installed "
-                        f"client ({actual}); update the game or select an older addon release"
-                    )
-
-                raise ValueError(
-                    f"{package.name}: targets game flavor {expected}, but the installed client is {actual}"
-                )
-
-        if outdated:
-            print(f"warning: {package.name}: out of date ({'; '.join(outdated)})",
-                  file=sys.stderr)
+        print(f"warning: {package.name}: out of date "
+              f"(game interface: addon targets {expected}, installed client is {actual})",
+              file=sys.stderr)
