@@ -2,7 +2,7 @@ name: Update addons
 
 on:
   schedule:
-    - cron: '7 12 * * *'
+    - cron: '45 12 * * *'
       timezone: Europe/Amsterdam
   workflow_dispatch:
 
