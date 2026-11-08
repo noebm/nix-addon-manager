@@ -372,7 +372,6 @@ def main():
     target.add_argument("--export-zip", type=Path, metavar="PATH",
                         help="Build and export the selection as a compressed ZIP")
     parser.add_argument("--config", type=Path, help="Nix function returning an addon package list")
-    parser.add_argument("--repository", type=Path, default=Path(__file__).resolve().parents[1])
     action = parser.add_mutually_exclusive_group()
     action.add_argument("--apply", action="store_true", help="Build, stage, and install the selection")
     action.add_argument("--recover", action="store_true", help="Recover an interrupted transaction")
@@ -384,8 +383,9 @@ def main():
         parser.error("--export-zip cannot be combined with --apply or --recover")
 
     try:
+        repository = Path(__file__).resolve().parents[1]
+
         if args.export_zip is not None:
-            repository = args.repository.resolve(strict=True)
             configuration = args.config.resolve(strict=True)
             # Keep the build rooted until all package contents have been archived.
             with tempfile.TemporaryDirectory(prefix="addon-export-") as temporary:
@@ -405,7 +405,6 @@ def main():
                 print("Recovery complete")
                 return
 
-            repository = args.repository.resolve(strict=True)
             configuration = args.config.resolve(strict=True)
             manifest = nix_manifest(repository, configuration, build=False)
             plan = locked.reconcile(manifest)
