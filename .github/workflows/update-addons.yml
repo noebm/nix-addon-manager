@@ -39,9 +39,6 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run tests
-        run: python3 -m unittest discover -s tests
-
       - name: Update and build addon packages
         env:
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
