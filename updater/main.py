@@ -8,7 +8,6 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
@@ -16,17 +15,43 @@ import subprocess
 import sys
 import tempfile
 import time
+import zipfile
+from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from typing import Any, BinaryIO, NotRequired, TypedDict
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
-import zipfile
-
 
 SOURCE = re.compile(r'url = "([^"\n]+)";\s*hash = "(sha256-[^"\n]+)";')
 VERSION = re.compile(r'(?m)^  version = "([^"\n]+)";')
 
 
-def request_json(url):
+class GitHubAsset(TypedDict):
+    name: str
+    browser_download_url: str
+    digest: NotRequired[str | None]
+
+
+class GitHubRelease(TypedDict):
+    tag_name: str
+    published_at: str
+    draft: bool
+    prerelease: bool
+    assets: list[GitHubAsset]
+
+
+class CurseFile(TypedDict):
+    id: int
+    gameVersions: list[str]
+    fileDate: str
+    releaseType: NotRequired[int]
+    isAvailable: NotRequired[bool]
+    downloadUrl: NotRequired[str | None]
+
+
+def request_json(url: str) -> Any:
     headers = {"User-Agent": "nix-addon-manager-updater", "Accept": "application/json"}
     if urlparse(url).hostname == "api.curseforge.com":
         key = os.environ.get("CURSEFORGE_API_KEY")
@@ -41,30 +66,42 @@ def request_json(url):
         return json.load(response)
 
 
-def pages(url, *, curse=False):
-    result = []
-    page = 0
-    while True:
-        query = (
-            {"pageSize": 50, "index": page * 50}
-            if curse
-            else {"per_page": 100, "page": page + 1}
-        )
-        response = request_json(url + ("&" if "?" in url else "?") + urlencode(query))
-        values = response["data"] if curse else response
-        result.extend(values)
-        if len(values) < (50 if curse else 100):
+def pages(url: str, *, curse: bool = False) -> Iterator[dict[str, Any]]:
+    page_size = 50 if curse else 100
+
+    if curse:
+        def query(page: int) -> dict[str, int]:
+            return {"pageSize": page_size, "index": page * page_size}
+
+        def response(result):
+            return result["data"]
+    else:
+        def query(page: int) -> dict[str, int]:
+            return {"per_page": page_size, "page": page + 1}
+
+        def response(result):
             return result
+
+    page = 0
+
+    while True:
+        result = request_json(
+            url + ("&" if "?" in url else "?") + urlencode(query(page))
+        )
+        values = response(result)
+        yield from values
+        if len(values) < page_size:
+            return
         page += 1
 
 
-def github_candidate(url, releases):
+def github_candidate(url: str, releases: list[GitHubRelease]) -> tuple[str, str]:
     match = re.fullmatch(
         r"https://github.com/([^/]+/[^/]+)/releases/download/(.+)/([^/]+)", url
     )
     if not match:
         raise ValueError(f"Unsupported GitHub release URL: {url}")
-    repository, tag, filename = match.groups()
+    _repository, tag, filename = match.groups()
     component, separator, version = tag.rpartition("/v")
     if not separator or version not in filename:
         raise ValueError(f"Unsupported component tag: {tag}")
@@ -89,7 +126,7 @@ def github_candidate(url, releases):
 
     # Upstream component tags use numeric semantic versions. Reject a release
     # published later on an older branch rather than silently downgrading.
-    def numeric(value):
+    def numeric(value: str) -> tuple[int, ...]:
         if not re.fullmatch(r"\d+(?:\.\d+)*", value):
             raise ValueError(f"Unsupported release version: {value}")
         return tuple(map(int, value.split(".")))
@@ -105,7 +142,7 @@ def github_candidate(url, releases):
     return assets[0]["browser_download_url"], new_version
 
 
-def curse_candidate(current, files):
+def curse_candidate(current: CurseFile, files: Iterable[CurseFile]) -> CurseFile:
     versions = set(current["gameVersions"])
     if not versions:
         raise ValueError("Pinned CurseForge file has no game compatibility metadata")
@@ -207,7 +244,9 @@ class RemoteZip(io.RawIOBase):
         return data
 
 
-def discover_directories(url, interface):
+def discover_directories(
+    url: str, interface: int | None
+) -> tuple[set[str], str | None]:
     """Read ZIP paths and TOCs through ranges, falling back when unsupported.
 
     Discovery is not full archive validation or cryptographic verification.
@@ -220,7 +259,7 @@ def discover_directories(url, interface):
         return directories, version
 
 
-def directory_declaration(directories):
+def directory_declaration(directories: Iterable[str]) -> str:
     """Render a deterministic pinned directory declaration."""
     return (
         "addonDirectories = [\n"
@@ -229,7 +268,12 @@ def directory_declaration(directories):
     )
 
 
-def validate_archive(source, interface, *, check_crc=True):
+def validate_archive(
+    source: BinaryIO | io.RawIOBase,
+    interface: int | None,
+    *,
+    check_crc: bool = True,
+) -> tuple[set[str], str | None]:
     directories = set()
     versions = []
     toc_count = 0
@@ -255,7 +299,7 @@ def validate_archive(source, interface, *, check_crc=True):
                 toc_count += 1
                 content = archive.read(entry).decode("utf-8-sig", errors="replace")
                 interfaces = re.findall(
-                    r"^##\s*Interface\s*:\s*(.+)$", content, re.M | re.I
+                    r"^##\s*Interface\s*:\s*(.+)$", content, re.MULTILINE | re.IGNORECASE
                 )
                 if interface is not None and not any(
                     str(interface) in re.findall(r"\d+", value) for value in interfaces
@@ -263,7 +307,7 @@ def validate_archive(source, interface, *, check_crc=True):
                     raise ValueError(
                         f"Incompatible or missing Interface in {name}; expected {interface}"
                     )
-                version = re.search(r"^##\s*Version\s*:\s*(.+)$", content, re.M | re.I)
+                version = re.search(r"^##\s*Version\s*:\s*(.+)$", content, re.MULTILINE | re.IGNORECASE)
                 if version:
                     versions.append(version[1].strip())
         bad = archive.testzip() if check_crc else None
@@ -274,7 +318,9 @@ def validate_archive(source, interface, *, check_crc=True):
     return directories, versions[0] if versions else None
 
 
-def download(url, interface):
+def download(
+    url: str, interface: int | None
+) -> tuple[str, set[str], str | None]:
     if urlparse(url).scheme != "https":
         raise ValueError("Release downloads must use HTTPS")
     print(f"Downloading: {url}", file=sys.stderr, flush=True)
@@ -331,9 +377,22 @@ def download(url, interface):
     return "sha256-" + base64.b64encode(digest.digest()).decode(), directories, version
 
 
-def propose(name, text, github_releases=None, *, pending_validation=None):
+@dataclass
+class PendingValidation:
+    url: str
+    digest: str
+    interface: int | None
+    directories: set[str]
+
+
+def propose(
+    name: str,
+    text: str,
+    github_releases: dict[str, list[GitHubRelease]] | None = None,
+) -> tuple[str, list[PendingValidation]]:
+    pending_validation: list[PendingValidation] = []
     sources = list(SOURCE.finditer(text))
-    directory_block = re.search(r"addonDirectories = \[(.*?)\];", text, re.S)
+    directory_block = re.search(r"addonDirectories = \[(.*?)\];", text, re.DOTALL)
     if not sources or not directory_block or len(VERSION.findall(text)) != 1:
         raise ValueError(f"Unsupported package definition: {name}")
     expected = set(re.findall(r'"([^"\n]+)"', directory_block[1]))
@@ -355,8 +414,8 @@ def propose(name, text, github_releases=None, *, pending_validation=None):
             repository = "/".join(url.split("/")[3:5])
             # All current multi-source packages use one upstream repository.
             if repository not in github_releases:
-                github_releases[repository] = pages(
-                    f"https://api.github.com/repos/{repository}/releases"
+                github_releases[repository] = list(
+                    pages(f"https://api.github.com/repos/{repository}/releases")
                 )
             candidate, new_version = github_candidate(url, github_releases[repository])
             assets = [
@@ -410,7 +469,7 @@ def propose(name, text, github_releases=None, *, pending_validation=None):
         changed |= candidate != url
         candidates.append((source, candidate, new_version))
     if not changed:
-        return text
+        return text, pending_validation
 
     for index, (source, candidate, new_version) in enumerate(candidates):
         url, old_hash = source.groups()
@@ -422,10 +481,14 @@ def propose(name, text, github_releases=None, *, pending_validation=None):
             component_directories, toc_version = discover_directories(
                 candidate, interface
             )
-            if pending_validation is not None:
-                pending_validation.append(
-                    (candidate, new_hash, interface, component_directories)
+            pending_validation.append(
+                PendingValidation(
+                    url=candidate,
+                    digest=new_hash,
+                    interface=interface,
+                    directories=component_directories,
                 )
+            )
         else:
             new_hash, component_directories, toc_version = download(
                 candidate, interface
@@ -456,16 +519,17 @@ def propose(name, text, github_releases=None, *, pending_validation=None):
         )
     for start, end, replacement in sorted(replacements, reverse=True):
         text = text[:start] + replacement + text[end:]
-    return VERSION.sub(
+    proposal = VERSION.sub(
         lambda match: f"  version = {nix_string(package_version)};", text
     )
+    return proposal, pending_validation
 
 
-def nix_string(value):
+def nix_string(value: str) -> str:
     return json.dumps(value).replace("${", "\\${")
 
 
-def update(repository, names, *, apply=False):
+def update(repository: Path, names: list[str], *, apply: bool = False) -> None:
     originals = {}
     proposals = {}
     build_names = set()
@@ -480,9 +544,9 @@ def update(repository, names, *, apply=False):
         for path in components or [package]:
             label = f"{name}/{path.parent.name}" if components else name
             original = path.read_text()
-            proposal = propose(
-                label, original, github_releases, pending_validation=pending_validation
-            )
+            proposal, validations = propose(label, original, github_releases)
+            pending_validation.extend(validations)
+
             if proposal != original:
                 relative = path.relative_to(repository)
                 originals[relative] = original
@@ -506,19 +570,27 @@ def update(repository, names, *, apply=False):
         print("Preview only; pass --apply to build and write pins")
         return
 
-    for url, digest, interface, expected in pending_validation:
+    for validation in pending_validation:
         result = subprocess.run(
-            ["nix", "store", "prefetch-file", "--json", "--expected-hash", digest, url],
+            [
+                "nix",
+                "store",
+                "prefetch-file",
+                "--json",
+                "--expected-hash",
+                validation.digest,
+                validation.url,
+            ],
             check=True,
             stdout=subprocess.PIPE,
             text=True,
         )
         archive = Path(json.loads(result.stdout)["storePath"])
         with archive.open("rb") as source:
-            directories, _ = validate_archive(source, interface)
-        if directories != expected:
+            directories, _ = validate_archive(source, validation.interface)
+        if directories != validation.directories:
             raise ValueError(
-                f"Addon directories changed: expected {sorted(expected)}, got {sorted(directories)}"
+                f"Addon directories changed: expected {sorted(validation.directories)}, got {sorted(directories)}"
             )
 
     with tempfile.TemporaryDirectory(prefix="nix-addon-update-") as directory:
@@ -565,7 +637,7 @@ def update(repository, names, *, apply=False):
     )
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--addon",
@@ -584,7 +656,7 @@ def main():
         lock = os.open(repository, os.O_RDONLY)
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            names = args.addon or sorted(
+            names: list[str] = args.addon or sorted(
                 path.parent.name
                 for path in (repository / "addons").glob("*/package.nix")
             )

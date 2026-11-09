@@ -1,11 +1,10 @@
-import io
 import base64
 import hashlib
-import re
-from pathlib import Path
+import io
 import tempfile
 import unittest
 import zipfile
+from pathlib import Path
 from unittest.mock import patch
 
 from updater import main as updater
@@ -29,6 +28,24 @@ def release(version, date, *, prerelease=False, asset=True):
             else []
         ),
     }
+
+
+class PaginationTests(unittest.TestCase):
+    def test_pages_yields_lazily_across_pages(self):
+        for curse, page_size in ((False, 100), (True, 50)):
+            with self.subTest(curse=curse):
+                first = [{"id": index} for index in range(page_size)]
+                last = [{"id": page_size}]
+                responses = [first, last]
+                if curse:
+                    responses = [{"data": values} for values in responses]
+                with patch.object(updater, "request_json", side_effect=responses) as request:
+                    entries = updater.pages("https://example.org/releases", curse=curse)
+                    request.assert_not_called()
+                    self.assertEqual(next(entries), first[0])
+                    self.assertEqual(request.call_count, 1)
+                    self.assertEqual(list(entries), first[1:] + last)
+                    self.assertEqual(request.call_count, 2)
 
 
 class ReleaseTests(unittest.TestCase):
@@ -145,9 +162,11 @@ class ArchiveTests(unittest.TestCase):
             "C:\\Test\\file",
             "C:Test\\file",
         ):
-            with self.subTest(name=name):
-                with self.assertRaisesRegex(ValueError, "Unsafe archive entry"):
-                    updater.validate_archive(self.archive({name: "bad"}), None)
+            with (
+                self.subTest(name=name),
+                self.assertRaisesRegex(ValueError, "Unsafe archive entry"),
+            ):
+                updater.validate_archive(self.archive({name: "bad"}), None)
 
     def test_archive_reports_directories_and_version(self):
         self.assertEqual(
@@ -196,11 +215,13 @@ class DirectoryDiscoveryTests(ArchiveTests):
         response.url = "https://example.org/addon.zip"
         response.status = 200
         response.headers = {}
-        with patch.object(updater, "urlopen", return_value=response):
-            with patch.object(updater, "download", return_value=("hash", {"New"}, "2")):
-                self.assertEqual(
-                    updater.discover_directories(response.url, None), ({"New"}, "2")
-                )
+        with (
+            patch.object(updater, "urlopen", return_value=response),
+            patch.object(updater, "download", return_value=("hash", {"New"}, "2")),
+        ):
+            self.assertEqual(
+                updater.discover_directories(response.url, None), ({"New"}, "2")
+            )
 
     def test_invalid_partial_responses_fall_back(self):
         for headers, body in (
@@ -212,32 +233,38 @@ class DirectoryDiscoveryTests(ArchiveTests):
             response.url = "https://example.org/addon.zip"
             response.status = 206
             response.headers = headers
-            with self.subTest(headers=headers, body=body):
-                with patch.object(updater, "urlopen", return_value=response):
-                    with patch.object(
+            with (
+                self.subTest(headers=headers, body=body),
+                patch.object(updater, "urlopen", return_value=response),
+                patch.object(
                         updater, "download", return_value=("hash", {"New"}, "2")
-                    ):
-                        self.assertEqual(
-                            updater.discover_directories(response.url, None),
-                            ({"New"}, "2"),
-                        )
+                    ),
+            ):
+                self.assertEqual(
+                    updater.discover_directories(response.url, None),
+                    ({"New"}, "2"),
+                )
 
     def test_rejected_range_falls_back(self):
         error = updater.HTTPError(
             "https://example.org/addon.zip", 501, "Unsupported", {}, None
         )
-        with patch.object(updater, "urlopen", side_effect=error):
-            with patch.object(updater, "download", return_value=("hash", {"New"}, "2")):
-                self.assertEqual(
-                    updater.discover_directories(error.url, None), ({"New"}, "2")
-                )
+        with (
+            patch.object(updater, "urlopen", side_effect=error),
+            patch.object(updater, "download", return_value=("hash", {"New"}, "2")),
+        ):
+            self.assertEqual(
+                updater.discover_directories(error.url, None), ({"New"}, "2")
+            )
 
     def test_partial_discovery_rejects_insecure_redirect(self):
         response = io.BytesIO(b"x")
         response.url = "http://example.org/addon.zip"
-        with patch.object(updater, "urlopen", return_value=response):
-            with self.assertRaisesRegex(ValueError, "redirected"):
-                updater.discover_directories("https://example.org/addon.zip", None)
+        with (
+            patch.object(updater, "urlopen", return_value=response),
+            self.assertRaisesRegex(ValueError, "redirected"),
+        ):
+            updater.discover_directories("https://example.org/addon.zip", None)
 
 
 class DownloadTests(unittest.TestCase):
@@ -255,21 +282,25 @@ class DownloadTests(unittest.TestCase):
                 response.url = "https://example.org/addon.zip"
                 response.headers = headers
                 progress = io.StringIO()
-                with patch.object(updater, "urlopen", return_value=response):
-                    with patch("sys.stderr", progress):
-                        self.assertEqual(
-                            updater.download(response.url, 16001),
-                            (expected_hash, {"Test"}, "2.0"),
-                        )
+                with (
+                    patch.object(updater, "urlopen", return_value=response),
+                    patch("sys.stderr", progress),
+                ):
+                    self.assertEqual(
+                        updater.download(response.url, 16001),
+                        (expected_hash, {"Test"}, "2.0"),
+                    )
                 self.assertIn("Downloading", progress.getvalue())
                 self.assertIn("Validating archive", progress.getvalue())
 
     def test_download_rejects_insecure_redirect(self):
         response = io.BytesIO(b"not an archive")
         response.url = "http://example.org/addon.zip"
-        with patch.object(updater, "urlopen", return_value=response):
-            with self.assertRaisesRegex(ValueError, "redirected"):
-                updater.download("https://example.org/addon.zip", None)
+        with (
+            patch.object(updater, "urlopen", return_value=response),
+            self.assertRaisesRegex(ValueError, "redirected"),
+        ):
+            updater.download("https://example.org/addon.zip", None)
 
 
 class UpdateTests(unittest.TestCase):
@@ -282,16 +313,15 @@ class UpdateTests(unittest.TestCase):
             package.parent.mkdir(parents=True)
             original = "original pins\n"
             package.write_text(original)
-            with patch.object(updater, "propose", return_value="updated pins\n"):
+            with patch.object(updater, "propose", return_value=("updated pins\n", [])):
                 updater.update(root, ["test"], apply=False)
                 self.assertEqual(package.read_text(), original)
                 with patch.object(
                     updater.subprocess,
                     "run",
                     side_effect=subprocess.CalledProcessError(1, "nix"),
-                ):
-                    with self.assertRaises(subprocess.CalledProcessError):
-                        updater.update(root, ["test"], apply=True)
+                ), self.assertRaises(subprocess.CalledProcessError):
+                    updater.update(root, ["test"], apply=True)
                 self.assertEqual(package.read_text(), original)
 
     def test_digest_archive_is_validated_before_build_and_pin_write(self):
@@ -307,47 +337,48 @@ class UpdateTests(unittest.TestCase):
                 with zipfile.ZipFile(archive, "w") as output:
                     output.writestr(f"{addon}/{addon}.toc", "## Interface: 16001\n")
 
-                def proposal(*args, pending_validation):
-                    pending_validation.append(
-                        (
-                            "https://example.org/release.zip",
-                            "sha256-test",
-                            16001,
-                            {"Test"},
+                def proposal(*args):
+                    return "new\n", [
+                        updater.PendingValidation(
+                            url="https://example.org/release.zip",
+                            digest="sha256-test",
+                            interface=16001,
+                            directories={"Test"},
                         )
-                    )
-                    return "new\n"
+                    ]
 
                 prefetched = subprocess.CompletedProcess(
                     [], 0, stdout=updater.json.dumps({"storePath": str(archive)})
                 )
-                with patch.object(updater, "propose", side_effect=proposal):
-                    with patch.object(
+                with (
+                    patch.object(updater, "propose", side_effect=proposal),
+                    patch.object(
                         updater.subprocess, "run", return_value=prefetched
-                    ) as run:
-                        if addon == "Test":
+                    ) as run,
+                ):
+                    if addon == "Test":
+                        updater.update(root, ["test"], apply=True)
+                        self.assertEqual(run.call_count, 2)
+                        self.assertEqual(package.read_text(), "new\n")
+                    else:
+                        with self.assertRaisesRegex(
+                            ValueError, "directories changed"
+                        ):
                             updater.update(root, ["test"], apply=True)
-                            self.assertEqual(run.call_count, 2)
-                            self.assertEqual(package.read_text(), "new\n")
-                        else:
-                            with self.assertRaisesRegex(
-                                ValueError, "directories changed"
-                            ):
-                                updater.update(root, ["test"], apply=True)
-                            self.assertEqual(run.call_count, 1)
-                            self.assertEqual(package.read_text(), "old\n")
-                        self.assertEqual(
-                            run.call_args_list[0].args[0],
-                            [
-                                "nix",
-                                "store",
-                                "prefetch-file",
-                                "--json",
-                                "--expected-hash",
-                                "sha256-test",
-                                "https://example.org/release.zip",
-                            ],
-                        )
+                        self.assertEqual(run.call_count, 1)
+                        self.assertEqual(package.read_text(), "old\n")
+                    self.assertEqual(
+                        run.call_args_list[0].args[0],
+                        [
+                            "nix",
+                            "store",
+                            "prefetch-file",
+                            "--json",
+                            "--expected-hash",
+                            "sha256-test",
+                            "https://example.org/release.zip",
+                        ],
+                    )
 
     def test_successful_build_applies_pins_and_rejects_concurrent_edits(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -355,7 +386,7 @@ class UpdateTests(unittest.TestCase):
             package = root / "addons/test/package.nix"
             package.parent.mkdir(parents=True)
             package.write_text("old\n")
-            with patch.object(updater, "propose", return_value="new\n"):
+            with patch.object(updater, "propose", return_value=("new\n", [])):
                 with patch.object(updater.subprocess, "run"):
                     updater.update(root, ["test"], apply=True)
                 self.assertEqual(package.read_text(), "new\n")
@@ -364,9 +395,8 @@ class UpdateTests(unittest.TestCase):
                     updater.subprocess,
                     "run",
                     side_effect=lambda *a, **k: package.write_text("user edit\n"),
-                ):
-                    with self.assertRaisesRegex(ValueError, "changed"):
-                        updater.update(root, ["test"], apply=True)
+                ), self.assertRaisesRegex(ValueError, "changed"):
+                    updater.update(root, ["test"], apply=True)
                 self.assertEqual(package.read_text(), "user edit\n")
 
 
@@ -410,12 +440,14 @@ class ProposalTests(unittest.TestCase):
                 ],
             },
         ]
-        with patch.object(updater, "pages", return_value=releases):
-            with patch.object(
+        with (
+            patch.object(updater, "pages", return_value=releases),
+            patch.object(
                 updater, "download", return_value=("sha256-newhash", directories, None)
-            ) as download:
-                result = updater.propose("spoken-quests-audio-english", text)
-                download.assert_called_once_with(new_url, None)
+            ) as download,
+        ):
+            result, _ = updater.propose("spoken-quests-audio-english", text)
+            download.assert_called_once_with(new_url, None)
         self.assertEqual(
             result,
             text.replace(old_url, new_url)
@@ -433,13 +465,22 @@ class ProposalTests(unittest.TestCase):
         expected = "sha256-" + base64.b64encode(bytes.fromhex("ab" * 32)).decode()
         with patch.object(
             updater, "pages", return_value=[release(version, "2026-01-01"), latest]
-        ):
-            with patch.object(
-                updater, "discover_directories", return_value=({"New"}, None)
-            ):
-                with patch.object(updater, "download") as download:
-                    result = updater.propose("spoken", text)
-                    download.assert_not_called()
+        ), patch.object(
+            updater, "discover_directories", return_value=({"New"}, None)
+        ), patch.object(updater, "download") as download:
+            result, validations = updater.propose("spoken", text)
+            download.assert_not_called()
+        self.assertEqual(
+            validations,
+            [
+                updater.PendingValidation(
+                    url=latest["assets"][0]["browser_download_url"],
+                    digest=expected,
+                    interface=None,
+                    directories={"New"},
+                )
+            ],
+        )
         self.assertIn(expected, result)
         self.assertIn(f'version = "{newer}"', result)
 
@@ -451,19 +492,20 @@ class ProposalTests(unittest.TestCase):
         latest["assets"][0]["digest"] = "sha256:invalid"
         with patch.object(
             updater, "pages", return_value=[release(version, "2026-01-01"), latest]
-        ):
-            with self.assertRaisesRegex(ValueError, "digest"):
-                updater.propose("spoken", text)
+        ), self.assertRaisesRegex(ValueError, "digest"):
+            updater.propose("spoken", text)
 
     def test_unchanged_component_does_not_download(self):
         root = Path(__file__).resolve().parents[1]
         text = (root / "addons/spoken-english/components/code/package.nix").read_text()
         version = updater.VERSION.search(text)[1]
         releases = [release(version, "2026-01-01")]
-        with patch.object(updater, "pages", return_value=releases):
-            with patch.object(updater, "download") as download:
-                self.assertEqual(updater.propose("spoken", text), text)
-                download.assert_not_called()
+        with (
+            patch.object(updater, "pages", return_value=releases),
+            patch.object(updater, "download") as download,
+        ):
+            self.assertEqual(updater.propose("spoken", text), (text, []))
+            download.assert_not_called()
 
     def test_changed_component_directories_are_recorded(self):
         root = Path(__file__).resolve().parents[1]
@@ -476,12 +518,11 @@ class ProposalTests(unittest.TestCase):
             updater,
             "pages",
             return_value=[release(version, "2026-01-01"), release(newer, "2026-02-01")],
+        ), patch.object(
+            updater, "download", return_value=("sha256-new", {"Changed"}, "3.9.0")
         ):
-            with patch.object(
-                updater, "download", return_value=("sha256-new", {"Changed"}, "3.9.0")
-            ):
-                result = updater.propose("spoken", text)
-                self.assertIn('addonDirectories = [\n      "Changed"\n    ];', result)
+            result, _ = updater.propose("spoken", text)
+            self.assertIn('addonDirectories = [\n      "Changed"\n    ];', result)
 
     def test_components_share_release_list_within_each_run(self):
         root = Path(__file__).resolve().parents[1]
@@ -498,15 +539,17 @@ class ProposalTests(unittest.TestCase):
                     "assets": [],
                 }
             )
-        with patch.object(updater, "pages", return_value=releases) as pages:
-            with patch.object(updater, "download") as download:
-                updater.update(root, ["spoken-english"], apply=False)
-                pages.assert_called_once_with(
-                    "https://api.github.com/repos/rusty-key/spoken-wow/releases"
-                )
-                updater.update(root, ["spoken-english"], apply=False)
-                self.assertEqual(pages.call_count, 2)
-                download.assert_not_called()
+        with (
+            patch.object(updater, "pages", return_value=releases) as pages,
+            patch.object(updater, "download") as download,
+        ):
+            updater.update(root, ["spoken-english"], apply=False)
+            pages.assert_called_once_with(
+                "https://api.github.com/repos/rusty-key/spoken-wow/releases"
+            )
+            updater.update(root, ["spoken-english"], apply=False)
+            self.assertEqual(pages.call_count, 2)
+            download.assert_not_called()
 
     def test_internal_components_update_through_public_package(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -517,11 +560,11 @@ class ProposalTests(unittest.TestCase):
             component = bundle.parent / "components/code/package.nix"
             component.parent.mkdir(parents=True)
             component.write_text("old pins\n")
-            with patch.object(updater, "propose", return_value="new pins\n") as propose:
+            with patch.object(updater, "propose", return_value=("new pins\n", [])) as propose:
                 with patch.object(updater.subprocess, "run") as build:
                     updater.update(root, ["bundle"], apply=True)
                 propose.assert_called_once_with(
-                    "bundle/code", "old pins\n", {}, pending_validation=[]
+                    "bundle/code", "old pins\n", {}
                 )
                 self.assertIn("#bundle", build.call_args.args[0][-1])
             self.assertEqual(component.read_text(), "new pins\n")
