@@ -28,7 +28,7 @@ let
         hash = source.outputHash;
         hashAlgorithm = source.outputHashAlgo;
       }) (package.srcs or [ ]);
-    }) (pkgs.lib.concatMap (package: package.addonComponents or [ package ]) packages);
+    }) (pkgs.lib.concatMap (package: package.paths or [ package ]) packages);
   };
 in
 if build then pkgs.writeText "addon-manifest.json" (builtins.toJSON manifest) else manifest

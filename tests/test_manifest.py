@@ -25,11 +25,11 @@ class ManifestTests(unittest.TestCase):
               addons.books-on-map-forever
               (addons.spoken-english.overrideAttrs (old: {
                 passthru = old.passthru // {
-                  addonComponents = map (component:
+                  paths = map (component:
                     if component.pname == "spoken" then
                       component.overrideAttrs { version = "test-update"; }
                     else component
-                  ) old.passthru.addonComponents;
+                  ) old.passthru.paths;
                 };
               }))
             ]""")

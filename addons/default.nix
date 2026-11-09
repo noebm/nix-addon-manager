@@ -3,6 +3,7 @@
 let
   scope = pkgs.lib.makeScope pkgs.newScope (self: {
     mkAddon = self.callPackage ../lib/mk-addon.nix { };
+    mkAddonBundle = self.callPackage ../lib/mk-addon-bundle.nix { };
 
     angleur = self.callPackage ./angleur/package.nix { };
     atlasloot-classic-forever = self.callPackage ./atlasloot-classic-forever/package.nix { };
