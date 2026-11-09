@@ -11,8 +11,8 @@ mkAddon {
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9503/738/AtlasLoot-Classic-Forever-1.3.3-081126-16001.zip";
-      hash = "sha256-Hgs5oLUFUWSbBY0EprEYpaCxmClDkBZIrV/kCpvkF84=";
+      url = "https://edge.forgecdn.net/files/9520/898/AtlasLoot-Classic-Forever-1.3.4-091126-16001.zip";
+      hash = "sha256-Ydj16MOOeXP7VjrfWUk52wwlHBSCd3QgzlBUitVRZqQ=";
     })
   ];
 
