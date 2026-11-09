@@ -18,6 +18,7 @@
       pre-commit-check = git-hooks.lib.${system}.run {
         src = ./.;
         hooks.ruff.enable = true;
+        hooks.ruff-format.enable = true;
       };
     in
     {
