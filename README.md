@@ -40,6 +40,9 @@ Spoken and AtlasLoot Classic Forever together:
 The configuration receives `pkgs`, `lib`, `addons`, and `modules`. It describes
 the complete desired selection for one game installation.
 
+The installer and the flake's package outputs enable `allowUnfree` so addons with
+unfree licenses can be built.
+
 Addons are installed under `Interface/AddOns` inside the supplied game path.
 Unrelated addons and game settings under `WTF` are left untouched.
 
