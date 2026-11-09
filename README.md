@@ -8,13 +8,15 @@ The project is still at an early stage; expect some slop.
 
 ## Package structure
 
-- `addons/`: addon packages and fixed bundles.
-- `modules/`: configurable addons, with choices such as language or voice packs.
-- `pkgs/`: tools, including the installer.
+- `addons/<name>/`: addon packages and fixed bundles.
+- `modules/`: configurable addon modules.
+- `pkgs/<name>/package.nix`: packages for the installer and updater tools.
+- `installer/` and `updater/`: Python implementations of those tools.
+- `lib/`: shared addon and bundle builders, and manifest evaluation.
 
 Addon and tool packages are exposed through the flake's `packages` output.
-Releases and download hashes are pinned in addon definitions; `flake.lock` pins
-nixpkgs.
+Releases and download hashes are pinned in addon and component definitions;
+`flake.lock` pins the flake's dependencies.
 
 ## Usage
 
