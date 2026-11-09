@@ -587,7 +587,9 @@ class ProposalTests(unittest.TestCase):
                 updater, "download", return_value=("sha256-newhash", directories, None)
             ) as download,
         ):
-            result, _ = updater.propose("spoken-quests-audio-english", text)
+            result, _ = updater.propose(
+                "spoken-quests-audio-english", text, updater.releases.Retriever()
+            )
             download.assert_called_once_with(new_url, None)
         self.assertEqual(
             result,
@@ -611,7 +613,9 @@ class ProposalTests(unittest.TestCase):
             patch.object(updater, "discover_directories", return_value=({"New"}, None)),
             patch.object(updater, "download") as download,
         ):
-            result, validations = updater.propose("spoken", text)
+            result, validations = updater.propose(
+                "spoken", text, updater.releases.Retriever()
+            )
             download.assert_not_called()
         self.assertEqual(
             validations,
@@ -639,7 +643,7 @@ class ProposalTests(unittest.TestCase):
             ),
             self.assertRaisesRegex(ValueError, "digest"),
         ):
-            updater.propose("spoken", text)
+            updater.propose("spoken", text, updater.releases.Retriever())
 
     def test_unchanged_component_does_not_download(self):
         root = Path(__file__).resolve().parents[1]
@@ -650,7 +654,10 @@ class ProposalTests(unittest.TestCase):
             patch.object(_api, "pages", return_value=releases),
             patch.object(updater, "download") as download,
         ):
-            self.assertEqual(updater.propose("spoken", text), (text, []))
+            self.assertEqual(
+                updater.propose("spoken", text, updater.releases.Retriever()),
+                (text, []),
+            )
             download.assert_not_called()
 
     def test_changed_component_directories_are_recorded(self):
@@ -673,7 +680,7 @@ class ProposalTests(unittest.TestCase):
                 updater, "download", return_value=("sha256-new", {"Changed"}, "3.9.0")
             ),
         ):
-            result, _ = updater.propose("spoken", text)
+            result, _ = updater.propose("spoken", text, updater.releases.Retriever())
             self.assertIn('addonDirectories = [\n      "Changed"\n    ];', result)
 
     def test_components_share_release_list_within_each_run(self):
@@ -717,7 +724,13 @@ class ProposalTests(unittest.TestCase):
             ) as propose:
                 with patch.object(updater.subprocess, "run") as build:
                     updater.update(root, ["bundle"], apply=True)
-                propose.assert_called_once_with("bundle/code", "old pins\n", {})
+                propose.assert_called_once()
+                self.assertEqual(
+                    propose.call_args.args[:2], ("bundle/code", "old pins\n")
+                )
+                self.assertIsInstance(
+                    propose.call_args.args[2], updater.releases.Retriever
+                )
                 self.assertIn("#bundle", build.call_args.args[0][-1])
             self.assertEqual(component.read_text(), "new pins\n")
             self.assertEqual(bundle.read_text(), "bundle definition")

@@ -24,7 +24,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from .releases import curseforge, github
+from . import releases
 
 SOURCE = re.compile(r'url = "([^"\n]+)";\s*hash = "(sha256-[^"\n]+)";')
 VERSION = re.compile(r'(?m)^  version = "([^"\n]+)";')
@@ -264,7 +264,7 @@ class PendingValidation:
 def propose(
     name: str,
     text: str,
-    github_releases: dict[str, list[github.GitHubRelease]] | None = None,
+    retriever: releases.Retriever,
 ) -> tuple[str, list[PendingValidation]]:
     pending_validation: list[PendingValidation] = []
     sources = list(SOURCE.finditer(text))
@@ -279,28 +279,18 @@ def propose(
     directories = set()
     changed = False
     package_version = versions[0]
-    if github_releases is None:
-        github_releases = {}
+
+    homepage_match = re.search(r'homepage = "([^"\n]+)";', text)
+    homepage = homepage_match[1] if homepage_match else None
 
     candidates = []
     digests = {}
     for index, source in enumerate(sources):
         url, old_hash = source.groups()
-        new_version = None
-        if url.startswith("https://github.com/"):
-            candidate, new_version, digest = github.retrieve(url, github_releases)
-            if digest:
-                digests[candidate] = digest
-
-        elif url.startswith("https://edge.forgecdn.net/"):
-            homepage = re.search(
-                r'homepage = "https://www.curseforge.com/wow/addons/([^"/]+)";', text
-            )
-            if homepage is None:
-                raise ValueError(f"Unsupported CurseForge source in {name}")
-            candidate = curseforge.retrieve(url, homepage[1])
-        else:
-            raise ValueError(f"Unsupported release source: {url}")
+        release = retriever.retrieve(url, homepage=homepage)
+        candidate, new_version = release.url, release.version
+        if release.digest:
+            digests[candidate] = release.digest
 
         changed |= candidate != url
         candidates.append((source, candidate, new_version))
@@ -369,7 +359,7 @@ def update(repository: Path, names: list[str], *, apply: bool = False) -> None:
     originals = {}
     proposals = {}
     build_names = set()
-    github_releases = {}
+    retriever = releases.Retriever()
     pending_validation = []
 
     for name in dict.fromkeys(names):
@@ -380,7 +370,7 @@ def update(repository: Path, names: list[str], *, apply: bool = False) -> None:
         for path in components or [package]:
             label = f"{name}/{path.parent.name}" if components else name
             original = path.read_text()
-            proposal, validations = propose(label, original, github_releases)
+            proposal, validations = propose(label, original, retriever)
             pending_validation.extend(validations)
 
             if proposal != original:

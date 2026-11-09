@@ -125,8 +125,14 @@ def curse_latest(current: CurseFile, project: CurseProject) -> CurseFile:
     return curse_candidate(current, files)
 
 
-def retrieve(url: str, slug: str) -> str:
+def retrieve(url: str, homepage: str | None) -> str:
     """Find the newest stable file compatible with the pinned file."""
+    match = re.fullmatch(
+        r"https://www.curseforge.com/wow/addons/([^/]+)", homepage or ""
+    )
+    if match is None:
+        raise ValueError(f"Unsupported CurseForge homepage: {homepage}")
+    slug = match[1]
     file_match = re.search(r"/files/(\d+)/(\d+)/", url)
     if file_match is None:
         raise ValueError(f"Unsupported CurseForge source: {url}")
