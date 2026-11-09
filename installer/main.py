@@ -117,7 +117,9 @@ class Installation:
         if not self.target.is_dir() or self.target.resolve() != self.target:
             raise ValueError("Game path must contain real Interface/AddOns directories")
 
-        state_home = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state")
+        state_home = Path(
+            os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state"
+        )
         if not state_home.is_absolute():
             state_home = Path.home() / ".local/state"
 
@@ -136,12 +138,16 @@ class Installation:
     @contextmanager
     def lock(self):
         """Yield a LockedInstallation valid only while this context holds the lock."""
-        fd = os.open(self.control / "lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fd = os.open(
+            self.control / "lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600
+        )
         with os.fdopen(fd, "w") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
-                raise ValueError("Another installer is operating on this game directory") from None
+                raise ValueError(
+                    "Another installer is operating on this game directory"
+                ) from None
 
             yield LockedInstallation(self, lock)
 
@@ -152,6 +158,7 @@ def requires_active_lock(cls):
     Private methods, properties, and inherited methods are left unchanged.
     The lock file must remain open only for the lifetime of the lock context.
     """
+
     def guard(method):
         @wraps(method)
         def checked(self, *args, **kwargs):
@@ -201,7 +208,9 @@ class LockedInstallation:
         if not installation.state_path.exists():
             return InstallationState()
 
-        return InstallationState.from_dict(json.loads(installation.state_path.read_text()))
+        return InstallationState.from_dict(
+            json.loads(installation.state_path.read_text())
+        )
 
     def _archive_transaction(self, identifier: str) -> None:
         installation = self._installation
@@ -240,8 +249,13 @@ class LockedInstallation:
 
         remove_tree(installation.transaction)
 
-    def reconcile(self, manifest: Manifest, *, apply: bool = False,
-                  manifest_root: Path | None = None) -> dict[str, Operation]:
+    def reconcile(
+        self,
+        manifest: Manifest,
+        *,
+        apply: bool = False,
+        manifest_root: Path | None = None,
+    ) -> dict[str, Operation]:
         installation = self._installation
 
         if installation.transaction.exists():
@@ -251,13 +265,17 @@ class LockedInstallation:
         selected = selected_directories(manifest)
         state = self.state()
         previous = state.directories
-        existing = {path.name.casefold(): path.name for path in installation.target.iterdir()}
+        existing = {
+            path.name.casefold(): path.name for path in installation.target.iterdir()
+        }
         plan = {}
         for name in sorted(previous.keys() | selected.keys()):
             destination = installation.target / name
             actual = existing.get(name.casefold())
             if actual is not None and (name not in previous or actual != name):
-                raise ValueError(f"Unmanaged directory conflict: {actual}; move it aside explicitly")
+                raise ValueError(
+                    f"Unmanaged directory conflict: {actual}; move it aside explicitly"
+                )
             if destination.is_symlink():
                 expected = Path(previous[name].path) / "share/wow-addons" / name
                 if destination.readlink() != expected:
@@ -270,16 +288,25 @@ class LockedInstallation:
             elif name not in previous or not destination.exists():
                 plan[name] = Operation.INSTALL
             else:
-                plan[name] = Operation.KEEP if previous[name] == selected[name] else Operation.UPDATE
+                plan[name] = (
+                    Operation.KEEP
+                    if previous[name] == selected[name]
+                    else Operation.UPDATE
+                )
 
         if not apply:
             return plan
 
         if all(action is Operation.KEEP for action in plan.values()):
             if manifest_root is not None:
-                write_json(installation.state_path, replace(
-                    state, game=str(installation.game), manifest=str(manifest_root),
-                ))
+                write_json(
+                    installation.state_path,
+                    replace(
+                        state,
+                        game=str(installation.game),
+                        manifest=str(manifest_root),
+                    ),
+                )
             return plan
 
         identifier = uuid.uuid4().hex
@@ -290,9 +317,11 @@ class LockedInstallation:
         backups.mkdir()
         changes = {
             name: DirectoryChange(
-                existed=(installation.target / name).exists() or (installation.target / name).is_symlink(),
+                existed=(installation.target / name).exists()
+                or (installation.target / name).is_symlink(),
             )
-            for name, action in plan.items() if action is not Operation.KEEP
+            for name, action in plan.items()
+            if action is not Operation.KEEP
         }
         try:
             for name in changes:
@@ -301,18 +330,25 @@ class LockedInstallation:
                     validate_tree(source)
                     (staged / name).symlink_to(source, target_is_directory=True)
 
-            write_json(installation.transaction / "journal.json", TransactionJournal(identifier, changes))
+            write_json(
+                installation.transaction / "journal.json",
+                TransactionJournal(identifier, changes),
+            )
             for name, change in changes.items():
                 if change.existed:
                     move_link(installation.target / name, backups / name)
                 if name in selected:
                     move_link(staged / name, installation.target / name)
 
-            write_json(installation.state_path, InstallationState(
-                transaction=identifier, directories=selected,
-                game=str(installation.game),
-                manifest=str(manifest_root) if manifest_root else None,
-            ))
+            write_json(
+                installation.state_path,
+                InstallationState(
+                    transaction=identifier,
+                    directories=selected,
+                    game=str(installation.game),
+                    manifest=str(manifest_root) if manifest_root else None,
+                ),
+            )
         except BaseException:
             self.recover()
             raise
@@ -321,8 +357,9 @@ class LockedInstallation:
         return plan
 
 
-def nix_manifest(repository: Path, configuration: Path, *, build: bool,
-                 out_link: Path | None = None) -> Manifest:
+def nix_manifest(
+    repository: Path, configuration: Path, *, build: bool, out_link: Path | None = None
+) -> Manifest:
     def nix_string(value):
         return json.dumps(str(value)).replace("${", "\\${")
 
@@ -332,14 +369,22 @@ def nix_manifest(repository: Path, configuration: Path, *, build: bool,
         f"configuration = {nix_string(configuration)}; "
         f"build = {'true' if build else 'false'}; }}"
     )
-    command = ["nix", "build" if build else "eval", "--impure", "--json",
-               "--expr", expression]
+    command = [
+        "nix",
+        "build" if build else "eval",
+        "--impure",
+        "--json",
+        "--expr",
+        expression,
+    ]
     if build:
         command.extend(["--out-link", str(out_link)])
 
     result = json.loads(subprocess.check_output(command, text=True))
     if build:
-        return Manifest.from_dict(json.loads(Path(result[0]["outputs"]["out"]).read_text()))
+        return Manifest.from_dict(
+            json.loads(Path(result[0]["outputs"]["out"]).read_text())
+        )
 
     return Manifest.from_dict(result)
 
@@ -354,10 +399,13 @@ def export_zip(manifest: Manifest, destination: Path) -> None:
     for source in sources.values():
         validate_tree(source)
 
-    with tempfile.TemporaryDirectory(prefix=".addon-export-", dir=destination.parent) as temporary:
+    with tempfile.TemporaryDirectory(
+        prefix=".addon-export-", dir=destination.parent
+    ) as temporary:
         archive_path = Path(temporary) / "addons.zip"
-        with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED,
-                             strict_timestamps=False) as archive:
+        with zipfile.ZipFile(
+            archive_path, "w", compression=zipfile.ZIP_DEFLATED, strict_timestamps=False
+        ) as archive:
             for name, source in sorted(sources.items()):
                 archive.write(source, name)
                 for path in sorted(source.rglob("*")):
@@ -371,12 +419,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument("--game-path", type=Path)
-    target.add_argument("--export-zip", type=Path, metavar="PATH",
-                        help="Build and export the selection as a compressed ZIP")
-    parser.add_argument("--config", type=Path, help="Nix function returning an addon package list")
+    target.add_argument(
+        "--export-zip",
+        type=Path,
+        metavar="PATH",
+        help="Build and export the selection as a compressed ZIP",
+    )
+    parser.add_argument(
+        "--config", type=Path, help="Nix function returning an addon package list"
+    )
     action = parser.add_mutually_exclusive_group()
-    action.add_argument("--apply", action="store_true", help="Build, stage, and install the selection")
-    action.add_argument("--recover", action="store_true", help="Recover an interrupted transaction")
+    action.add_argument(
+        "--apply", action="store_true", help="Build, stage, and install the selection"
+    )
+    action.add_argument(
+        "--recover", action="store_true", help="Recover an interrupted transaction"
+    )
     args = parser.parse_args()
     if not args.recover and args.config is None:
         parser.error("--config is required unless using --recover")
@@ -389,13 +447,19 @@ def main():
 
         if args.export_zip is not None:
             if os.path.lexists(args.export_zip):
-                raise FileExistsError(errno.EEXIST, os.strerror(errno.EEXIST), args.export_zip)
+                raise FileExistsError(
+                    errno.EEXIST, os.strerror(errno.EEXIST), args.export_zip
+                )
 
             configuration = args.config.resolve(strict=True)
             # Keep the build rooted until all package contents have been archived.
             with tempfile.TemporaryDirectory(prefix="addon-export-") as temporary:
-                manifest = nix_manifest(repository, configuration, build=True,
-                                        out_link=Path(temporary) / "manifest")
+                manifest = nix_manifest(
+                    repository,
+                    configuration,
+                    build=True,
+                    out_link=Path(temporary) / "manifest",
+                )
                 export_zip(manifest, args.export_zip.absolute())
             for package in manifest.packages:
                 print(f"exported: {package.name} {package.version}")
@@ -421,14 +485,24 @@ def main():
                 roots.mkdir(exist_ok=True)
                 root = roots / uuid.uuid4().hex
                 # Keep every generation rooted, including interrupted operations and backups.
-                built = nix_manifest(repository, configuration, build=True, out_link=root)
+                built = nix_manifest(
+                    repository, configuration, build=True, out_link=root
+                )
                 if built != manifest:
-                    raise ValueError("Configuration changed during build; preview again")
+                    raise ValueError(
+                        "Configuration changed during build; preview again"
+                    )
                 locked.reconcile(built, apply=True, manifest_root=root)
                 print("Installation complete")
             else:
                 print("Preview only; pass --apply to install")
-    except (OSError, ValueError, TypeError, KeyError, subprocess.CalledProcessError) as error:
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        subprocess.CalledProcessError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         sys.exit(1)
 

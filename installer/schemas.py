@@ -59,8 +59,12 @@ class ManifestPackage:
     def from_dict(cls, value: dict[str, Any]) -> Self:
         data = dict(value)
         compatibility = data.get("compatibility")
-        data["compatibility"] = GameCompatibility(**compatibility) if compatibility is not None else None
-        data["sources"] = [DownloadSource(**source) for source in data.get("sources", [])]
+        data["compatibility"] = (
+            GameCompatibility(**compatibility) if compatibility is not None else None
+        )
+        data["sources"] = [
+            DownloadSource(**source) for source in data.get("sources", [])
+        ]
         return cls(**data)
 
 
@@ -80,7 +84,11 @@ class Manifest:
         if value.get("schema") != 1:
             raise ValueError("Unsupported manifest schema")
 
-        return cls(packages=[ManifestPackage.from_dict(package) for package in value["packages"]])
+        return cls(
+            packages=[
+                ManifestPackage.from_dict(package) for package in value["packages"]
+            ]
+        )
 
 
 @dataclass
@@ -114,7 +122,10 @@ class InstallationState:
             raise ValueError("Unsupported installation state schema")
 
         data = dict(value)
-        data["directories"] = {name: OwnedDirectory(**owner) for name, owner in value["directories"].items()}
+        data["directories"] = {
+            name: OwnedDirectory(**owner)
+            for name, owner in value["directories"].items()
+        }
         return cls(**data)
 
 
@@ -144,9 +155,13 @@ class TransactionJournal:
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> Self:
-        return cls(id=value["id"], changes={
-            name: DirectoryChange(**change) for name, change in value["changes"].items()
-        })
+        return cls(
+            id=value["id"],
+            changes={
+                name: DirectoryChange(**change)
+                for name, change in value["changes"].items()
+            },
+        )
 
 
 JsonDocument = Manifest | InstallationState | TransactionJournal

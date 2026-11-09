@@ -22,15 +22,27 @@ def detect_client(game: Path) -> GameCompatibility:
         raise ValueError(f"Invalid game product in {flavor_path}")
 
     product = flavor_rows[0]
-    build_path = next((root / ".build.info" for root in (game, game.parent)
-                       if (root / ".build.info").is_file()), None)
+    build_path = next(
+        (
+            root / ".build.info"
+            for root in (game, game.parent)
+            if (root / ".build.info").is_file()
+        ),
+        None,
+    )
     if build_path is None:
-        raise ValueError(f"Cannot detect game version: missing .build.info in {game} or its parent")
+        raise ValueError(
+            f"Cannot detect game version: missing .build.info in {game} or its parent"
+        )
 
     with build_path.open(encoding="utf-8-sig", newline="") as stream:
         rows = csv.reader(stream, delimiter="|")
         columns = [column.split("!", 1)[0] for column in next(rows, [])]
-        if len(set(columns)) != len(columns) or not {"Product", "Version", "Active"} <= set(columns):
+        if len(set(columns)) != len(columns) or not {
+            "Product",
+            "Version",
+            "Active",
+        } <= set(columns):
             raise ValueError(f"Invalid .build.info header in {build_path}")
 
         versions = set()
@@ -45,7 +57,9 @@ def detect_client(game: Path) -> GameCompatibility:
                 versions.add(row["Version"])
 
     if len(versions) != 1:
-        raise ValueError(f"Missing or ambiguous active build for {product} in {build_path}")
+        raise ValueError(
+            f"Missing or ambiguous active build for {product} in {build_path}"
+        )
 
     version = versions.pop()
     match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)\.(\d+)", version)
@@ -72,9 +86,12 @@ def detect_client(game: Path) -> GameCompatibility:
 def validate_compatibility(game: Path, manifest: Manifest) -> None:
     """Reject incompatible targets, but warn and allow older addon targets."""
     fields = ("flavor", "interface")
-    packages = [package for package in manifest.packages
-                if package.compatibility is not None
-                and any(getattr(package.compatibility, field) is not None for field in fields)]
+    packages = [
+        package
+        for package in manifest.packages
+        if package.compatibility is not None
+        and any(getattr(package.compatibility, field) is not None for field in fields)
+    ]
     if not packages:
         return
 
@@ -97,6 +114,8 @@ def validate_compatibility(game: Path, manifest: Manifest) -> None:
                 f"client ({actual}); update the game or select an older addon release"
             )
 
-        print(f"warning: {package.name}: out of date "
-              f"(game interface: addon targets {expected}, installed client is {actual})",
-              file=sys.stderr)
+        print(
+            f"warning: {package.name}: out of date "
+            f"(game interface: addon targets {expected}, installed client is {actual})",
+            file=sys.stderr,
+        )

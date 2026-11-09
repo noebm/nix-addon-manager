@@ -39,10 +39,17 @@ class ManifestTests(unittest.TestCase):
         selected = selected_directories(after)
         self.assertEqual(previous.keys(), selected.keys())
         changed = {name for name in previous if previous[name] != selected[name]}
-        self.assertEqual(changed, {
-            "Spoken", "SpokenContributions", "Spoken_Bosses",
-            "Spoken_Places", "Spoken_Quests", "Spoken_Readables",
-        })
+        self.assertEqual(
+            changed,
+            {
+                "Spoken",
+                "SpokenContributions",
+                "Spoken_Bosses",
+                "Spoken_Places",
+                "Spoken_Quests",
+                "Spoken_Readables",
+            },
+        )
 
 
 if __name__ == "__main__":

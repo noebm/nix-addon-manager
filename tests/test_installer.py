@@ -16,12 +16,25 @@ from installer import schemas
 
 class SchemaTests(unittest.TestCase):
     def test_manifest_decodes_nested_metadata(self):
-        data = {"schema": 1, "packages": [{
-            "name": "test", "version": "1", "path": "/nix/store/test",
-            "directories": ["Test"],
-            "compatibility": {"flavor": "forever", "interface": 16001},
-            "sources": [{"url": "https://example.org/test.zip", "hash": "abc", "hashAlgorithm": "sha256"}],
-        }]}
+        data = {
+            "schema": 1,
+            "packages": [
+                {
+                    "name": "test",
+                    "version": "1",
+                    "path": "/nix/store/test",
+                    "directories": ["Test"],
+                    "compatibility": {"flavor": "forever", "interface": 16001},
+                    "sources": [
+                        {
+                            "url": "https://example.org/test.zip",
+                            "hash": "abc",
+                            "hashAlgorithm": "sha256",
+                        }
+                    ],
+                }
+            ],
+        }
         manifest = schemas.Manifest.from_dict(data)
         self.assertEqual(manifest.packages[0].compatibility.interface, 16001)
         self.assertEqual(manifest.packages[0].sources[0].hashAlgorithm, "sha256")
@@ -29,14 +42,23 @@ class SchemaTests(unittest.TestCase):
 
     def test_compatibility_has_one_numeric_version(self):
         compatibility = schemas.GameCompatibility(flavor="forever", interface=16001)
-        self.assertEqual(asdict(compatibility), {"flavor": "forever", "interface": 16001})
+        self.assertEqual(
+            asdict(compatibility), {"flavor": "forever", "interface": 16001}
+        )
 
     def test_legacy_state_and_journal_decode(self):
-        state = schemas.InstallationState.from_dict({
-            "schema": 1, "directories": {"Test": {
-                "name": "test", "version": "1", "path": "/nix/store/test",
-            }},
-        })
+        state = schemas.InstallationState.from_dict(
+            {
+                "schema": 1,
+                "directories": {
+                    "Test": {
+                        "name": "test",
+                        "version": "1",
+                        "path": "/nix/store/test",
+                    }
+                },
+            }
+        )
         self.assertEqual(state.directories["Test"].version, "1")
         self.assertIsNone(state.transaction)
         journal = {"id": "generation", "changes": {"Test": {"existed": True}}}
@@ -48,12 +70,24 @@ class SchemaTests(unittest.TestCase):
             root = Path(directory)
             output = root / "manifest.json"
             output.write_text(json.dumps(data))
-            with patch.object(installer.subprocess, "check_output", return_value=json.dumps(data)):
-                evaluated = installer.nix_manifest(root, root / "config.nix", build=False)
-            with patch.object(installer.subprocess, "check_output", return_value=json.dumps([
-                {"outputs": {"out": str(output)}},
-            ])):
-                built = installer.nix_manifest(root, root / "config.nix", build=True, out_link=root / "gc-root")
+            with patch.object(
+                installer.subprocess, "check_output", return_value=json.dumps(data)
+            ):
+                evaluated = installer.nix_manifest(
+                    root, root / "config.nix", build=False
+                )
+            with patch.object(
+                installer.subprocess,
+                "check_output",
+                return_value=json.dumps(
+                    [
+                        {"outputs": {"out": str(output)}},
+                    ]
+                ),
+            ):
+                built = installer.nix_manifest(
+                    root, root / "config.nix", build=True, out_link=root / "gc-root"
+                )
 
         self.assertEqual(evaluated, schemas.Manifest(packages=[]))
         self.assertEqual(built, evaluated)
@@ -84,30 +118,50 @@ class ExportTests(unittest.TestCase):
         self.source.mkdir(parents=True)
         (self.source / "Test.toc").write_text("addon content")
         (self.source / "empty").mkdir()
-        self.manifest = schemas.Manifest.from_dict({"schema": 1, "packages": [{
-            "name": "test", "version": "1", "path": str(self.root / "package"),
-            "directories": ["Test"],
-        }]})
+        self.manifest = schemas.Manifest.from_dict(
+            {
+                "schema": 1,
+                "packages": [
+                    {
+                        "name": "test",
+                        "version": "1",
+                        "path": str(self.root / "package"),
+                        "directories": ["Test"],
+                    }
+                ],
+            }
+        )
         self.output = self.root / "addons.zip"
 
     def test_export_cli_without_game_path(self):
         config = self.root / "addons.nix"
         config.touch()
-        with patch("sys.argv", ["installer", "--config", str(config),
-                                "--export-zip", str(self.output)]):
+        with patch(
+            "sys.argv",
+            ["installer", "--config", str(config), "--export-zip", str(self.output)],
+        ):
             with patch.object(installer, "nix_manifest", return_value=self.manifest):
-                with patch.object(installer, "Installation", side_effect=AssertionError("game accessed")):
+                with patch.object(
+                    installer,
+                    "Installation",
+                    side_effect=AssertionError("game accessed"),
+                ):
                     with patch("sys.stdout", new_callable=StringIO) as output:
                         installer.main()
 
-        self.assertEqual(output.getvalue().splitlines(), [
-            "exported: test 1",
-            f"Export complete: {self.output}",
-        ])
+        self.assertEqual(
+            output.getvalue().splitlines(),
+            [
+                "exported: test 1",
+                f"Export complete: {self.output}",
+            ],
+        )
         with zipfile.ZipFile(self.output) as archive:
             self.assertEqual(archive.read("Test/Test.toc"), b"addon content")
             self.assertIn("Test/empty/", archive.namelist())
-            self.assertEqual(archive.getinfo("Test/Test.toc").compress_type, zipfile.ZIP_DEFLATED)
+            self.assertEqual(
+                archive.getinfo("Test/Test.toc").compress_type, zipfile.ZIP_DEFLATED
+            )
 
     def test_export_cli_rejects_existing_destination_before_build(self):
         config = self.root / "addons.nix"
@@ -122,8 +176,16 @@ class ExportTests(unittest.TestCase):
                 else:
                     destination.symlink_to(self.root / "missing")
 
-                with patch("sys.argv", ["installer", "--config", str(config),
-                                        "--export-zip", str(destination)]):
+                with patch(
+                    "sys.argv",
+                    [
+                        "installer",
+                        "--config",
+                        str(config),
+                        "--export-zip",
+                        str(destination),
+                    ],
+                ):
                     with patch.object(installer, "nix_manifest") as build:
                         with patch("sys.stderr", new_callable=StringIO) as error:
                             with self.assertRaises(SystemExit) as exited:
@@ -165,7 +227,9 @@ class InstallationTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        environment = patch.dict(os.environ, {"XDG_STATE_HOME": str(self.root / "state")})
+        environment = patch.dict(
+            os.environ, {"XDG_STATE_HOME": str(self.root / "state")}
+        )
         environment.start()
         self.addCleanup(environment.stop)
         self.game = self.root / "game"
@@ -175,18 +239,29 @@ class InstallationTests(unittest.TestCase):
         self.source = self.root / "package/share/wow-addons/Test"
         self.source.mkdir(parents=True)
         (self.source / "Test.toc").write_text("version one")
-        self.manifest = {"schema": 1, "packages": [{
-            "name": "test", "version": "1", "path": str(self.root / "package"),
-            "directories": ["Test"],
-        }]}
+        self.manifest = {
+            "schema": 1,
+            "packages": [
+                {
+                    "name": "test",
+                    "version": "1",
+                    "path": str(self.root / "package"),
+                    "directories": ["Test"],
+                }
+            ],
+        }
 
     def run_install(self, apply=True):
         install = installer.Installation(self.game)
         with install.lock() as locked:
-            return locked.reconcile(schemas.Manifest.from_dict(self.manifest), apply=apply)
+            return locked.reconcile(
+                schemas.Manifest.from_dict(self.manifest), apply=apply
+            )
 
     def client_metadata(self, *, product="wowf", version="1.60.1.70755", parent=True):
-        (self.game / ".flavor.info").write_text("Product Flavor!STRING:0\n" + product + "\n")
+        (self.game / ".flavor.info").write_text(
+            "Product Flavor!STRING:0\n" + product + "\n"
+        )
         location = self.game.parent if parent else self.game
         (location / ".build.info").write_text(
             "Branch!STRING:0|Active!DEC:1|Version!STRING:0|Product!STRING:0\n"
@@ -195,7 +270,8 @@ class InstallationTests(unittest.TestCase):
             f"us|0|0.0.0.1|{product}\n"
         )
         self.manifest["packages"][0]["compatibility"] = {
-            "flavor": "forever", "interface": 16001,
+            "flavor": "forever",
+            "interface": 16001,
         }
 
     def test_matching_client_metadata_allows_preview_and_apply(self):
@@ -212,8 +288,11 @@ class InstallationTests(unittest.TestCase):
             (self.game / ".flavor.info").write_text(content)
             self.run_install(False)
 
-        for content in ("Product Flavor!STRING:0\n", "Product Flavor!STRING:0\nwowf\nwow\n",
-                        "Wrong Header\nwowf\n"):
+        for content in (
+            "Product Flavor!STRING:0\n",
+            "Product Flavor!STRING:0\nwowf\nwow\n",
+            "Wrong Header\nwowf\n",
+        ):
             (self.game / ".flavor.info").write_text(content)
             with self.subTest(content=content):
                 with self.assertRaisesRegex(ValueError, "Invalid game product"):
@@ -231,23 +310,35 @@ class InstallationTests(unittest.TestCase):
                 with self.subTest(field=field, apply=apply):
                     with self.assertRaisesRegex(ValueError, f"test.*{field}"):
                         self.run_install(apply)
-                    self.assertEqual((self.control / "state.json").read_text(), old_state)
-                    self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")
+                    self.assertEqual(
+                        (self.control / "state.json").read_text(), old_state
+                    )
+                    self.assertEqual(
+                        (self.target / "Test/Test.toc").read_text(), "version one"
+                    )
                     self.assertFalse((self.control / "transaction").exists())
 
     def test_outdated_addons_warn_and_allow_preview_and_apply(self):
         self.client_metadata()
         self.manifest["packages"][0]["compatibility"].update(interface=10900)
         for apply in (False, True):
-            with self.subTest(apply=apply), patch("sys.stderr", new_callable=StringIO) as warnings:
-                self.assertEqual(self.run_install(apply), {"Test": installer.Operation.INSTALL})
+            with (
+                self.subTest(apply=apply),
+                patch("sys.stderr", new_callable=StringIO) as warnings,
+            ):
+                self.assertEqual(
+                    self.run_install(apply), {"Test": installer.Operation.INSTALL}
+                )
                 self.assertIn("warning: test: out of date", warnings.getvalue())
                 self.assertIn("10900", warnings.getvalue())
                 self.assertIn("16001", warnings.getvalue())
         self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")
 
     def test_partial_compatibility_declarations_warn_for_older_targets(self):
-        for compatibility in ({"interface": 16000}, {"flavor": "forever", "interface": 16000}):
+        for compatibility in (
+            {"interface": 16000},
+            {"flavor": "forever", "interface": 16000},
+        ):
             self.client_metadata()
             self.manifest["packages"][0]["compatibility"] = compatibility
             with self.subTest(compatibility=compatibility):
@@ -285,8 +376,11 @@ class InstallationTests(unittest.TestCase):
         self.assertFalse((self.target / "Test").exists())
 
     def test_malformed_build_metadata_is_rejected(self):
-        for content in ("wrong header\n", "Active|Version|Product\n1|garbage|wowf\n",
-                        "Active|Version|Product\n1|1.60.1.123|wowf|extra\n"):
+        for content in (
+            "wrong header\n",
+            "Active|Version|Product\n1|garbage|wowf\n",
+            "Active|Version|Product\n1|1.60.1.123|wowf|extra\n",
+        ):
             self.client_metadata()
             (self.root / ".build.info").write_text(content)
             with self.subTest(content=content):
@@ -319,7 +413,9 @@ class InstallationTests(unittest.TestCase):
         self.assertFalse((self.target / "Test").exists())
 
     def test_state_is_external_and_separate_per_game(self):
-        self.assertTrue(self.control.is_relative_to(self.root / "state/nix-addon-manager"))
+        self.assertTrue(
+            self.control.is_relative_to(self.root / "state/nix-addon-manager")
+        )
         self.assertFalse((self.game / ".nix-addon-manager").exists())
         other = self.root / "other-game"
         (other / "Interface/AddOns").mkdir(parents=True)
@@ -441,7 +537,9 @@ class InstallationTests(unittest.TestCase):
             write(path, value)
 
         with patch.object(installer, "write_json", side_effect=fail_commit):
-            with patch.object(installer.LockedInstallation, "recover", side_effect=OSError("killed")):
+            with patch.object(
+                installer.LockedInstallation, "recover", side_effect=OSError("killed")
+            ):
                 with self.assertRaises(OSError):
                     self.run_install()
 
@@ -479,7 +577,10 @@ class InstallationTests(unittest.TestCase):
         with install.lock() as locked:
             self.assertEqual(locked.state(), schemas.InstallationState())
             locked.recover()
-            self.assertEqual(locked.reconcile(schemas.Manifest.from_dict(self.manifest)), {"Test": installer.Operation.INSTALL})
+            self.assertEqual(
+                locked.reconcile(schemas.Manifest.from_dict(self.manifest)),
+                {"Test": installer.Operation.INSTALL},
+            )
 
     def test_expired_locked_installation_stays_invalid_after_reacquiring(self):
         install = installer.Installation(self.game)
@@ -490,12 +591,17 @@ class InstallationTests(unittest.TestCase):
             for operation in (
                 expired.state,
                 expired.recover,
-                lambda: expired.reconcile(schemas.Manifest.from_dict(self.manifest), apply=True),
+                lambda: expired.reconcile(
+                    schemas.Manifest.from_dict(self.manifest), apply=True
+                ),
             ):
                 with self.assertRaisesRegex(RuntimeError, "lock context"):
                     operation()
 
-            self.assertEqual(current.reconcile(schemas.Manifest.from_dict(self.manifest)), {"Test": installer.Operation.INSTALL})
+            self.assertEqual(
+                current.reconcile(schemas.Manifest.from_dict(self.manifest)),
+                {"Test": installer.Operation.INSTALL},
+            )
             self.assertFalse((self.target / "Test").exists())
 
     def test_class_decorator_guards_new_public_methods(self):
@@ -529,7 +635,11 @@ class InstallationTests(unittest.TestCase):
             self.run_install()
 
     def test_recovery_finishes_committed_transaction(self):
-        with patch.object(installer.LockedInstallation, "_archive_transaction", side_effect=OSError("killed")):
+        with patch.object(
+            installer.LockedInstallation,
+            "_archive_transaction",
+            side_effect=OSError("killed"),
+        ):
             with self.assertRaises(OSError):
                 self.run_install()
 
@@ -561,10 +671,19 @@ class InstallationTests(unittest.TestCase):
         (self.target / "Test/custom.lua").write_text("preserve")
         state = self.control
         state.mkdir(exist_ok=True)
-        (state / "state.json").write_text(json.dumps({
-            "schema": 1, "directories": {name: asdict(owner) for name, owner in
-                installer.selected_directories(schemas.Manifest.from_dict(self.manifest)).items()},
-        }))
+        (state / "state.json").write_text(
+            json.dumps(
+                {
+                    "schema": 1,
+                    "directories": {
+                        name: asdict(owner)
+                        for name, owner in installer.selected_directories(
+                            schemas.Manifest.from_dict(self.manifest)
+                        ).items()
+                    },
+                }
+            )
+        )
         for apply in (False, True):
             with self.assertRaisesRegex(ValueError, "Expected a managed symlink"):
                 self.run_install(apply)
@@ -601,7 +720,11 @@ class InstallationTests(unittest.TestCase):
         root.symlink_to(manifest)
         install = installer.Installation(self.game)
         with install.lock() as locked:
-            locked.reconcile(schemas.Manifest.from_dict(self.manifest), apply=True, manifest_root=root)
+            locked.reconcile(
+                schemas.Manifest.from_dict(self.manifest),
+                apply=True,
+                manifest_root=root,
+            )
             self.assertEqual(locked.state().manifest, str(root))
             locked.reconcile(schemas.Manifest(packages=[]), apply=True)
 
