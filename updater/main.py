@@ -16,15 +16,17 @@ import sys
 import tempfile
 import time
 import zipfile
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, BinaryIO, NotRequired, TypedDict
+from typing import BinaryIO, NotRequired, TypedDict, cast
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 SOURCE = re.compile(r'url = "([^"\n]+)";\s*hash = "(sha256-[^"\n]+)";')
+type JSON = None | bool | int | float | str | list[JSON] | dict[str, JSON]
+
 VERSION = re.compile(r'(?m)^  version = "([^"\n]+)";')
 
 
@@ -51,7 +53,118 @@ class CurseFile(TypedDict):
     downloadUrl: NotRequired[str | None]
 
 
-def request_json(url: str) -> Any:
+class CurseFileIndex(TypedDict):
+    fileId: int
+    gameVersion: str
+    releaseType: int
+
+
+class CurseProject(TypedDict):
+    id: int
+    slug: str
+    latestFilesIndexes: NotRequired[list[CurseFileIndex]]
+
+
+def json_dict(value: JSON) -> dict[str, JSON]:
+    if not isinstance(value, dict):
+        raise TypeError("Expected JSON object")
+    return value
+
+
+def json_list(value: JSON) -> list[JSON]:
+    if not isinstance(value, list):
+        raise TypeError("Expected JSON array")
+    return value
+
+
+def field[T](value: dict[str, JSON], name: str, kind: type[T]) -> T:
+    result = value.get(name)
+    if not isinstance(result, kind) or (kind is int and isinstance(result, bool)):
+        raise ValueError(f"Field {name}: expected {kind.__name__}")
+    return result
+
+
+def parse_github_release(value: JSON) -> GitHubRelease:
+    record = json_dict(value)
+    assets: list[GitHubAsset] = []
+    for asset_value in json_list(record.get("assets")):
+        asset = json_dict(asset_value)
+        parsed: GitHubAsset = {
+            "name": field(asset, "name", str),
+            "browser_download_url": field(asset, "browser_download_url", str),
+        }
+        if "digest" in asset:
+            parsed["digest"] = (
+                None if asset["digest"] is None else field(asset, "digest", str)
+            )
+        assets.append(parsed)
+    return {
+        "tag_name": field(record, "tag_name", str),
+        "published_at": field(record, "published_at", str),
+        "draft": field(record, "draft", bool),
+        "prerelease": field(record, "prerelease", bool),
+        "assets": assets,
+    }
+
+
+def parse_curse_file(value: JSON) -> CurseFile:
+    record = json_dict(value)
+    versions = json_list(record.get("gameVersions"))
+    if not all(isinstance(version, str) for version in versions):
+        raise ValueError("Field gameVersions: expected strings")
+    parsed: CurseFile = {
+        "id": field(record, "id", int),
+        "gameVersions": [version for version in versions if isinstance(version, str)],
+        "fileDate": field(record, "fileDate", str),
+    }
+    if "releaseType" in record:
+        parsed["releaseType"] = field(record, "releaseType", int)
+    if "isAvailable" in record:
+        parsed["isAvailable"] = field(record, "isAvailable", bool)
+    if "downloadUrl" in record:
+        parsed["downloadUrl"] = (
+            None if record["downloadUrl"] is None else field(record, "downloadUrl", str)
+        )
+    return parsed
+
+
+def parse_curse_project(value: JSON) -> CurseProject:
+    record = json_dict(value)
+    parsed: CurseProject = {
+        "id": field(record, "id", int),
+        "slug": field(record, "slug", str),
+    }
+    if "latestFilesIndexes" in record:
+        indexes: list[CurseFileIndex] = []
+        for index_value in json_list(record["latestFilesIndexes"]):
+            entry = json_dict(index_value)
+            indexes.append(
+                {
+                    "fileId": field(entry, "fileId", int),
+                    "gameVersion": field(entry, "gameVersion", str),
+                    "releaseType": field(entry, "releaseType", int),
+                }
+            )
+        parsed["latestFilesIndexes"] = indexes
+    return parsed
+
+
+def parsed_entries[T](
+    values: Iterable[JSON], parse: Callable[[JSON], T]
+) -> Iterator[T]:
+    for index, value in enumerate(values):
+        try:
+            entry = parse(value)
+        except (TypeError, ValueError) as error:
+            print(
+                f"Warning: ignoring release metadata entry {index}: {error}",
+                file=sys.stderr,
+            )
+            continue
+        yield entry
+
+
+def request_json(url: str) -> JSON:
     headers = {"User-Agent": "nix-addon-manager-updater", "Accept": "application/json"}
     if urlparse(url).hostname == "api.curseforge.com":
         key = os.environ.get("CURSEFORGE_API_KEY")
@@ -63,10 +176,10 @@ def request_json(url: str) -> Any:
 
     print(f"Fetching release metadata: {url}", file=sys.stderr, flush=True)
     with urlopen(Request(url, headers=headers), timeout=60) as response:
-        return json.load(response)
+        return cast(JSON, json.load(response))
 
 
-def pages(url: str, *, curse: bool = False) -> Iterator[dict[str, Any]]:
+def pages(url: str, *, curse: bool = False) -> Iterator[JSON]:
     page_size = 50 if curse else 100
 
     if curse:
@@ -74,15 +187,15 @@ def pages(url: str, *, curse: bool = False) -> Iterator[dict[str, Any]]:
         def query(page: int) -> dict[str, int]:
             return {"pageSize": page_size, "index": page * page_size}
 
-        def response(result):
-            return result["data"]
+        def response(result: JSON) -> list[JSON]:
+            return json_list(json_dict(result).get("data"))
     else:
 
         def query(page: int) -> dict[str, int]:
             return {"per_page": page_size, "page": page + 1}
 
-        def response(result):
-            return result
+        def response(result: JSON) -> list[JSON]:
+            return json_list(result)
 
     page = 0
 
@@ -155,8 +268,8 @@ def curse_candidate(current: CurseFile, files: Iterable[CurseFile]) -> CurseFile
         for file in files
         if file["id"] > current["id"]
         and file["fileDate"] > current["fileDate"]
-        and file["releaseType"] == 1
-        and file["isAvailable"]
+        and file.get("releaseType") == 1
+        and file.get("isAvailable", False)
         and versions.intersection(file["gameVersions"])
     ]
     return max(
@@ -164,7 +277,7 @@ def curse_candidate(current: CurseFile, files: Iterable[CurseFile]) -> CurseFile
     )
 
 
-def curse_latest(current: CurseFile, project: dict[str, Any]) -> CurseFile:
+def curse_latest(current: CurseFile, project: CurseProject) -> CurseFile:
     # Validate compatibility metadata before making any further requests.
     curse_candidate(current, [])
     base = f"https://api.curseforge.com/v1/mods/{project['id']}/files"
@@ -173,12 +286,15 @@ def curse_latest(current: CurseFile, project: dict[str, Any]) -> CurseFile:
         for entry in project.get("latestFilesIndexes", [])
         if entry["gameVersion"] in current["gameVersions"] and entry["releaseType"] == 1
     }
-    indexed = [
-        current
-        if file_id == current["id"]
-        else request_json(f"{base}/{file_id}")["data"]
-        for file_id in sorted(file_ids)
-    ]
+    indexed: list[CurseFile] = []
+    for file_id in sorted(file_ids):
+        if file_id == current["id"]:
+            indexed.append(current)
+            continue
+
+        result = json_dict(request_json(f"{base}/{file_id}"))
+        indexed.extend(parsed_entries([result.get("data")], parse_curse_file))
+
     latest = curse_candidate(current, indexed)
     if latest["id"] != current["id"] or current["id"] in file_ids:
         return latest
@@ -188,7 +304,10 @@ def curse_latest(current: CurseFile, project: dict[str, Any]) -> CurseFile:
     files = (
         file
         for version in sorted(set(current["gameVersions"]))
-        for file in pages(base + "?" + urlencode({"gameVersion": version}), curse=True)
+        for file in parsed_entries(
+            pages(base + "?" + urlencode({"gameVersion": version}), curse=True),
+            parse_curse_file,
+        )
     )
     return curse_candidate(current, files)
 
@@ -259,7 +378,9 @@ class RemoteZip(io.RawIOBase):
     def tell(self):
         return self.position
 
-    def seek(self, offset, whence=0):
+    def seek(self, offset: int, whence: int = 0) -> int:
+        assert self.size is not None
+
         position = offset + (
             self.position if whence == 1 else self.size if whence == 2 else 0
         )
@@ -268,7 +389,9 @@ class RemoteZip(io.RawIOBase):
         self.position = position
         return position
 
-    def read(self, size=-1):
+    def read(self, size: int = -1) -> bytes:
+        assert self.size is not None
+
         end = self.size if size < 0 else min(self.size, self.position + size)
         if end <= self.position:
             return b""
@@ -428,7 +551,8 @@ def propose(
     pending_validation: list[PendingValidation] = []
     sources = list(SOURCE.finditer(text))
     directory_block = re.search(r"addonDirectories = \[(.*?)\];", text, re.DOTALL)
-    if not sources or not directory_block or len(VERSION.findall(text)) != 1:
+    versions = VERSION.findall(text)
+    if not sources or not directory_block or len(versions) != 1:
         raise ValueError(f"Unsupported package definition: {name}")
     expected = set(re.findall(r'"([^"\n]+)"', directory_block[1]))
     compatibility = re.search(r"interface = (\d+);", text)
@@ -436,7 +560,7 @@ def propose(
     replacements = []
     directories = set()
     changed = False
-    package_version = VERSION.search(text)[1]
+    package_version = versions[0]
     if github_releases is None:
         github_releases = {}
 
@@ -450,7 +574,10 @@ def propose(
             # All current multi-source packages use one upstream repository.
             if repository not in github_releases:
                 github_releases[repository] = list(
-                    pages(f"https://api.github.com/repos/{repository}/releases")
+                    parsed_entries(
+                        pages(f"https://api.github.com/repos/{repository}/releases"),
+                        parse_github_release,
+                    )
                 )
             candidate, new_version = github_candidate(url, github_releases[repository])
             assets = [
@@ -474,10 +601,13 @@ def propose(
             file_match = re.search(r"/files/(\d+)/(\d+)/", url)
             if homepage is None or file_match is None:
                 raise ValueError(f"Unsupported CurseForge source in {name}")
-            projects = pages(
-                "https://api.curseforge.com/v1/mods/search?"
-                + urlencode({"gameId": 1, "slug": homepage[1]}),
-                curse=True,
+            projects = parsed_entries(
+                pages(
+                    "https://api.curseforge.com/v1/mods/search?"
+                    + urlencode({"gameId": 1, "slug": homepage[1]}),
+                    curse=True,
+                ),
+                parse_curse_project,
             )
             projects = [
                 project for project in projects if project["slug"] == homepage[1]
@@ -486,9 +616,13 @@ def propose(
                 raise ValueError(f"Cannot identify CurseForge project {homepage[1]}")
             project = projects[0]
             file_id = int(file_match[1]) * 1000 + int(file_match[2])
-            current = request_json(
-                f"https://api.curseforge.com/v1/mods/{project['id']}/files/{file_id}"
-            )["data"]
+            current = parse_curse_file(
+                json_dict(
+                    request_json(
+                        f"https://api.curseforge.com/v1/mods/{project['id']}/files/{file_id}"
+                    )
+                ).get("data")
+            )
             latest = curse_latest(current, project)
             candidate = url if latest["id"] == file_id else latest.get("downloadUrl")
             if not candidate:

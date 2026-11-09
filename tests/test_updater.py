@@ -31,6 +31,46 @@ def release(version, date, *, prerelease=False, asset=True):
 
 
 class PaginationTests(unittest.TestCase):
+    def test_invalid_entries_warn_without_truncating_pagination(self):
+        valid = release("3.8.0", "2026-01-01")
+        responses = [[None] * 99 + [valid], [valid]]
+        with patch.object(updater, "request_json", side_effect=responses) as request:
+            with patch("sys.stderr", new_callable=io.StringIO) as warnings:
+                entries = updater.parsed_entries(
+                    updater.pages("https://example.org/releases"),
+                    updater.parse_github_release,
+                )
+                self.assertEqual(list(entries), [valid, valid])
+            self.assertEqual(request.call_count, 2)
+            self.assertEqual(warnings.getvalue().count("Warning:"), 99)
+
+    def test_rejects_invalid_page_shapes(self):
+        for curse, response in ((False, {}), (True, {"data": {}})):
+            with (
+                self.subTest(curse=curse),
+                patch.object(updater, "request_json", return_value=response),
+                self.assertRaisesRegex(TypeError, "Expected JSON array"),
+            ):
+                list(updater.pages("https://example.org/releases", curse=curse))
+
+    def test_parses_release_and_rejects_invalid_nested_fields(self):
+        value = release("3.8.0", "2026-01-01")
+        self.assertEqual(updater.parse_github_release(value), value)
+        value["assets"][0]["name"] = 42
+        with self.assertRaisesRegex(ValueError, "name.*str"):
+            updater.parse_github_release(value)
+
+    def test_curse_file_optional_fields_are_checked(self):
+        value = {"id": 10, "gameVersions": ["1.60.1"], "fileDate": "2026-01-01"}
+        self.assertEqual(updater.parse_curse_file(value), value)
+        for field, invalid in (
+            ("id", True),
+            ("isAvailable", "yes"),
+            ("gameVersions", [1]),
+        ):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                updater.parse_curse_file(dict(value, **{field: invalid}))
+
     def test_pages_yields_lazily_across_pages(self):
         for curse, page_size in ((False, 100), (True, 50)):
             with self.subTest(curse=curse):
