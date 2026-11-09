@@ -70,12 +70,14 @@ def pages(url: str, *, curse: bool = False) -> Iterator[dict[str, Any]]:
     page_size = 50 if curse else 100
 
     if curse:
+
         def query(page: int) -> dict[str, int]:
             return {"pageSize": page_size, "index": page * page_size}
 
         def response(result):
             return result["data"]
     else:
+
         def query(page: int) -> dict[str, int]:
             return {"per_page": page_size, "page": page + 1}
 
@@ -158,6 +160,35 @@ def curse_candidate(current: CurseFile, files: Iterable[CurseFile]) -> CurseFile
     return max(
         candidates, key=lambda file: (file["fileDate"], file["id"]), default=current
     )
+
+
+def curse_latest(current: CurseFile, project: dict[str, Any]) -> CurseFile:
+    # Validate compatibility metadata before making any further requests.
+    curse_candidate(current, [])
+    base = f"https://api.curseforge.com/v1/mods/{project['id']}/files"
+    file_ids = {
+        entry["fileId"]
+        for entry in project.get("latestFilesIndexes", [])
+        if entry["gameVersion"] in current["gameVersions"] and entry["releaseType"] == 1
+    }
+    indexed = [
+        current
+        if file_id == current["id"]
+        else request_json(f"{base}/{file_id}")["data"]
+        for file_id in sorted(file_ids)
+    ]
+    latest = curse_candidate(current, indexed)
+    if latest["id"] != current["id"] or current["id"] in file_ids:
+        return latest
+
+    # Missing or unusable indexes require a history search, limited to the
+    # pinned file's game versions rather than every variant of the addon.
+    files = (
+        file
+        for version in sorted(set(current["gameVersions"]))
+        for file in pages(base + "?" + urlencode({"gameVersion": version}), curse=True)
+    )
+    return curse_candidate(current, files)
 
 
 class RangeUnsupported(Exception):
@@ -299,7 +330,9 @@ def validate_archive(
                 toc_count += 1
                 content = archive.read(entry).decode("utf-8-sig", errors="replace")
                 interfaces = re.findall(
-                    r"^##\s*Interface\s*:\s*(.+)$", content, re.MULTILINE | re.IGNORECASE
+                    r"^##\s*Interface\s*:\s*(.+)$",
+                    content,
+                    re.MULTILINE | re.IGNORECASE,
                 )
                 if interface is not None and not any(
                     str(interface) in re.findall(r"\d+", value) for value in interfaces
@@ -307,7 +340,9 @@ def validate_archive(
                     raise ValueError(
                         f"Incompatible or missing Interface in {name}; expected {interface}"
                     )
-                version = re.search(r"^##\s*Version\s*:\s*(.+)$", content, re.MULTILINE | re.IGNORECASE)
+                version = re.search(
+                    r"^##\s*Version\s*:\s*(.+)$", content, re.MULTILINE | re.IGNORECASE
+                )
                 if version:
                     versions.append(version[1].strip())
         bad = archive.testzip() if check_crc else None
@@ -318,9 +353,7 @@ def validate_archive(
     return directories, versions[0] if versions else None
 
 
-def download(
-    url: str, interface: int | None
-) -> tuple[str, set[str], str | None]:
+def download(url: str, interface: int | None) -> tuple[str, set[str], str | None]:
     if urlparse(url).scheme != "https":
         raise ValueError("Release downloads must use HTTPS")
     print(f"Downloading: {url}", file=sys.stderr, flush=True)
@@ -449,17 +482,12 @@ def propose(
             ]
             if len(projects) != 1:
                 raise ValueError(f"Cannot identify CurseForge project {homepage[1]}")
-            project = projects[0]["id"]
+            project = projects[0]
             file_id = int(file_match[1]) * 1000 + int(file_match[2])
             current = request_json(
-                f"https://api.curseforge.com/v1/mods/{project}/files/{file_id}"
+                f"https://api.curseforge.com/v1/mods/{project['id']}/files/{file_id}"
             )["data"]
-            latest = curse_candidate(
-                current,
-                pages(
-                    f"https://api.curseforge.com/v1/mods/{project}/files", curse=True
-                ),
-            )
+            latest = curse_latest(current, project)
             candidate = url if latest["id"] == file_id else latest.get("downloadUrl")
             if not candidate:
                 raise ValueError(f"Upstream does not permit downloading {name}")

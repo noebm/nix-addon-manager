@@ -39,7 +39,9 @@ class PaginationTests(unittest.TestCase):
                 responses = [first, last]
                 if curse:
                     responses = [{"data": values} for values in responses]
-                with patch.object(updater, "request_json", side_effect=responses) as request:
+                with patch.object(
+                    updater, "request_json", side_effect=responses
+                ) as request:
                     entries = updater.pages("https://example.org/releases", curse=curse)
                     request.assert_not_called()
                     self.assertEqual(next(entries), first[0])
@@ -110,6 +112,73 @@ class ReleaseTests(unittest.TestCase):
         ]
         self.assertEqual(updater.curse_candidate(current, files)["id"], 13)
         self.assertEqual(updater.curse_candidate(current, files[:2])["id"], 10)
+
+
+class CurseDiscoveryTests(unittest.TestCase):
+    def setUp(self):
+        self.current = {
+            "id": 10,
+            "gameVersions": ["1.60.1", "1.60.2"],
+            "fileDate": "2026-01-01",
+            "releaseType": 1,
+            "isAvailable": True,
+        }
+
+    def test_index_fetches_matching_stable_files_once_without_pagination(self):
+        project = {
+            "id": 123,
+            "latestFilesIndexes": [
+                {"fileId": 13, "gameVersion": version, "releaseType": kind}
+                for version, kind in (
+                    ("1.60.1", 1),
+                    ("1.60.2", 1),
+                    ("2.0", 1),
+                    ("1.60.1", 2),
+                )
+            ],
+        }
+        latest = dict(self.current, id=13, fileDate="2026-02-01")
+        with patch.object(
+            updater, "request_json", return_value={"data": latest}
+        ) as request:
+            self.assertEqual(updater.curse_latest(self.current, project), latest)
+            request.assert_called_once_with(
+                "https://api.curseforge.com/v1/mods/123/files/13"
+            )
+
+    def test_current_index_entry_needs_no_file_history(self):
+        project = {
+            "id": 123,
+            "latestFilesIndexes": [
+                {"fileId": 10, "gameVersion": "1.60.1", "releaseType": 1}
+            ],
+        }
+        with patch.object(updater, "request_json") as request:
+            self.assertEqual(updater.curse_latest(self.current, project), self.current)
+            request.assert_not_called()
+
+    def test_missing_or_unusable_index_falls_back_to_filtered_history(self):
+        latest = dict(self.current, id=12, fileDate="2026-02-01")
+        for indexes in (
+            None,
+            [],
+            [{"fileId": 13, "gameVersion": "1.60.1", "releaseType": 1}],
+        ):
+            with self.subTest(indexes=indexes):
+                project = {"id": 123}
+                if indexes is not None:
+                    project["latestFilesIndexes"] = indexes
+
+                def response(url):
+                    if url.endswith("/13"):
+                        return {"data": dict(latest, id=13, isAvailable=False)}
+                    self.assertIn("gameVersion=1.60.", url)
+                    return {"data": [latest]}
+
+                with patch.object(updater, "request_json", side_effect=response):
+                    self.assertEqual(
+                        updater.curse_latest(self.current, project), latest
+                    )
 
 
 class ArchiveTests(unittest.TestCase):
@@ -236,9 +305,7 @@ class DirectoryDiscoveryTests(ArchiveTests):
             with (
                 self.subTest(headers=headers, body=body),
                 patch.object(updater, "urlopen", return_value=response),
-                patch.object(
-                        updater, "download", return_value=("hash", {"New"}, "2")
-                    ),
+                patch.object(updater, "download", return_value=("hash", {"New"}, "2")),
             ):
                 self.assertEqual(
                     updater.discover_directories(response.url, None),
@@ -316,11 +383,14 @@ class UpdateTests(unittest.TestCase):
             with patch.object(updater, "propose", return_value=("updated pins\n", [])):
                 updater.update(root, ["test"], apply=False)
                 self.assertEqual(package.read_text(), original)
-                with patch.object(
-                    updater.subprocess,
-                    "run",
-                    side_effect=subprocess.CalledProcessError(1, "nix"),
-                ), self.assertRaises(subprocess.CalledProcessError):
+                with (
+                    patch.object(
+                        updater.subprocess,
+                        "run",
+                        side_effect=subprocess.CalledProcessError(1, "nix"),
+                    ),
+                    self.assertRaises(subprocess.CalledProcessError),
+                ):
                     updater.update(root, ["test"], apply=True)
                 self.assertEqual(package.read_text(), original)
 
@@ -361,9 +431,7 @@ class UpdateTests(unittest.TestCase):
                         self.assertEqual(run.call_count, 2)
                         self.assertEqual(package.read_text(), "new\n")
                     else:
-                        with self.assertRaisesRegex(
-                            ValueError, "directories changed"
-                        ):
+                        with self.assertRaisesRegex(ValueError, "directories changed"):
                             updater.update(root, ["test"], apply=True)
                         self.assertEqual(run.call_count, 1)
                         self.assertEqual(package.read_text(), "old\n")
@@ -391,11 +459,14 @@ class UpdateTests(unittest.TestCase):
                     updater.update(root, ["test"], apply=True)
                 self.assertEqual(package.read_text(), "new\n")
                 package.write_text("old\n")
-                with patch.object(
-                    updater.subprocess,
-                    "run",
-                    side_effect=lambda *a, **k: package.write_text("user edit\n"),
-                ), self.assertRaisesRegex(ValueError, "changed"):
+                with (
+                    patch.object(
+                        updater.subprocess,
+                        "run",
+                        side_effect=lambda *a, **k: package.write_text("user edit\n"),
+                    ),
+                    self.assertRaisesRegex(ValueError, "changed"),
+                ):
                     updater.update(root, ["test"], apply=True)
                 self.assertEqual(package.read_text(), "user edit\n")
 
@@ -463,11 +534,13 @@ class ProposalTests(unittest.TestCase):
         latest = release(newer, "2026-02-01")
         latest["assets"][0]["digest"] = "sha256:" + "ab" * 32
         expected = "sha256-" + base64.b64encode(bytes.fromhex("ab" * 32)).decode()
-        with patch.object(
-            updater, "pages", return_value=[release(version, "2026-01-01"), latest]
-        ), patch.object(
-            updater, "discover_directories", return_value=({"New"}, None)
-        ), patch.object(updater, "download") as download:
+        with (
+            patch.object(
+                updater, "pages", return_value=[release(version, "2026-01-01"), latest]
+            ),
+            patch.object(updater, "discover_directories", return_value=({"New"}, None)),
+            patch.object(updater, "download") as download,
+        ):
             result, validations = updater.propose("spoken", text)
             download.assert_not_called()
         self.assertEqual(
@@ -490,9 +563,12 @@ class ProposalTests(unittest.TestCase):
         version = updater.VERSION.search(text)[1]
         latest = release(version + ".1", "2026-02-01")
         latest["assets"][0]["digest"] = "sha256:invalid"
-        with patch.object(
-            updater, "pages", return_value=[release(version, "2026-01-01"), latest]
-        ), self.assertRaisesRegex(ValueError, "digest"):
+        with (
+            patch.object(
+                updater, "pages", return_value=[release(version, "2026-01-01"), latest]
+            ),
+            self.assertRaisesRegex(ValueError, "digest"),
+        ):
             updater.propose("spoken", text)
 
     def test_unchanged_component_does_not_download(self):
@@ -514,12 +590,18 @@ class ProposalTests(unittest.TestCase):
         fields = version.split(".")
         fields[-1] = str(int(fields[-1]) + 1)
         newer = ".".join(fields)
-        with patch.object(
-            updater,
-            "pages",
-            return_value=[release(version, "2026-01-01"), release(newer, "2026-02-01")],
-        ), patch.object(
-            updater, "download", return_value=("sha256-new", {"Changed"}, "3.9.0")
+        with (
+            patch.object(
+                updater,
+                "pages",
+                return_value=[
+                    release(version, "2026-01-01"),
+                    release(newer, "2026-02-01"),
+                ],
+            ),
+            patch.object(
+                updater, "download", return_value=("sha256-new", {"Changed"}, "3.9.0")
+            ),
         ):
             result, _ = updater.propose("spoken", text)
             self.assertIn('addonDirectories = [\n      "Changed"\n    ];', result)
@@ -560,12 +642,12 @@ class ProposalTests(unittest.TestCase):
             component = bundle.parent / "components/code/package.nix"
             component.parent.mkdir(parents=True)
             component.write_text("old pins\n")
-            with patch.object(updater, "propose", return_value=("new pins\n", [])) as propose:
+            with patch.object(
+                updater, "propose", return_value=("new pins\n", [])
+            ) as propose:
                 with patch.object(updater.subprocess, "run") as build:
                     updater.update(root, ["bundle"], apply=True)
-                propose.assert_called_once_with(
-                    "bundle/code", "old pins\n", {}
-                )
+                propose.assert_called_once_with("bundle/code", "old pins\n", {})
                 self.assertIn("#bundle", build.call_args.args[0][-1])
             self.assertEqual(component.read_text(), "new pins\n")
             self.assertEqual(bundle.read_text(), "bundle definition")
