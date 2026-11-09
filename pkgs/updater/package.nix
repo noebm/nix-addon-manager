@@ -20,7 +20,7 @@ stdenvNoCC.mkDerivation {
     runHook preInstall
 
     mkdir -p "$out/lib/nix-addon-manager/updater" "$out/bin"
-    cp *.py "$out/lib/nix-addon-manager/updater/"
+    cp -r *.py releases "$out/lib/nix-addon-manager/updater/"
     makeWrapper ${python3}/bin/python3 "$out/bin/nix-addon-updater" \
       --add-flags "-m updater.main" \
       --prefix PYTHONPATH : "$out/lib/nix-addon-manager" \

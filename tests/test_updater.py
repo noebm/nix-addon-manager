@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from updater import main as updater
+from updater.releases import _api, curseforge, github
 
 
 def release(version, date, *, prerelease=False, asset=True):
@@ -34,11 +35,11 @@ class PaginationTests(unittest.TestCase):
     def test_invalid_entries_warn_without_truncating_pagination(self):
         valid = release("3.8.0", "2026-01-01")
         responses = [[None] * 99 + [valid], [valid]]
-        with patch.object(updater, "request_json", side_effect=responses) as request:
+        with patch.object(_api, "request_json", side_effect=responses) as request:
             with patch("sys.stderr", new_callable=io.StringIO) as warnings:
-                entries = updater.parsed_entries(
-                    updater.pages("https://example.org/releases"),
-                    updater.parse_github_release,
+                entries = _api.parsed_entries(
+                    _api.pages("https://example.org/releases"),
+                    github.parse_github_release,
                 )
                 self.assertEqual(list(entries), [valid, valid])
             self.assertEqual(request.call_count, 2)
@@ -48,28 +49,28 @@ class PaginationTests(unittest.TestCase):
         for curse, response in ((False, {}), (True, {"data": {}})):
             with (
                 self.subTest(curse=curse),
-                patch.object(updater, "request_json", return_value=response),
+                patch.object(_api, "request_json", return_value=response),
                 self.assertRaisesRegex(TypeError, "Expected JSON array"),
             ):
-                list(updater.pages("https://example.org/releases", curse=curse))
+                list(_api.pages("https://example.org/releases", curse=curse))
 
     def test_parses_release_and_rejects_invalid_nested_fields(self):
         value = release("3.8.0", "2026-01-01")
-        self.assertEqual(updater.parse_github_release(value), value)
+        self.assertEqual(github.parse_github_release(value), value)
         value["assets"][0]["name"] = 42
         with self.assertRaisesRegex(ValueError, "name.*str"):
-            updater.parse_github_release(value)
+            github.parse_github_release(value)
 
     def test_curse_file_optional_fields_are_checked(self):
         value = {"id": 10, "gameVersions": ["1.60.1"], "fileDate": "2026-01-01"}
-        self.assertEqual(updater.parse_curse_file(value), value)
+        self.assertEqual(curseforge.parse_curse_file(value), value)
         for field, invalid in (
             ("id", True),
             ("isAvailable", "yes"),
             ("gameVersions", [1]),
         ):
             with self.subTest(field=field), self.assertRaises(ValueError):
-                updater.parse_curse_file(dict(value, **{field: invalid}))
+                curseforge.parse_curse_file(dict(value, **{field: invalid}))
 
     def test_pages_yields_lazily_across_pages(self):
         for curse, page_size in ((False, 100), (True, 50)):
@@ -80,9 +81,9 @@ class PaginationTests(unittest.TestCase):
                 if curse:
                     responses = [{"data": values} for values in responses]
                 with patch.object(
-                    updater, "request_json", side_effect=responses
+                    _api, "request_json", side_effect=responses
                 ) as request:
-                    entries = updater.pages("https://example.org/releases", curse=curse)
+                    entries = _api.pages("https://example.org/releases", curse=curse)
                     request.assert_not_called()
                     self.assertEqual(next(entries), first[0])
                     self.assertEqual(request.call_count, 1)
@@ -103,7 +104,7 @@ class ReleaseTests(unittest.TestCase):
             dict(release("5.0.0", "2026-05-01"), tag_name="quests-audio/v5.0.0")
         )
         self.assertEqual(
-            updater.github_candidate(self.current, releases)[0],
+            github.github_candidate(self.current, releases)[0],
             self.current.replace("3.8.0", "3.9.0"),
         )
 
@@ -116,11 +117,11 @@ class ReleaseTests(unittest.TestCase):
             ],
         ):
             with self.assertRaises(ValueError):
-                updater.github_candidate(self.current, releases)
+                github.github_candidate(self.current, releases)
 
     def test_github_never_downgrades(self):
         self.assertEqual(
-            updater.github_candidate(
+            github.github_candidate(
                 self.current,
                 [release("3.8.0", "2026-02-01"), release("3.7.0", "2026-01-01")],
             ),
@@ -138,7 +139,7 @@ class ReleaseTests(unittest.TestCase):
         for ordered in (releases, list(reversed(releases))):
             with self.subTest(reversed=ordered != releases):
                 self.assertEqual(
-                    updater.github_candidate(self.current, ordered),
+                    github.github_candidate(self.current, ordered),
                     (self.current.replace("3.8.0", "3.10.0.1"), "3.10.0.1"),
                 )
 
@@ -150,7 +151,7 @@ class ReleaseTests(unittest.TestCase):
             release("3.9.0", "2026-02-01"),
         ]
         self.assertEqual(
-            updater.github_candidate(self.current, releases),
+            github.github_candidate(self.current, releases),
             (self.current.replace("3.8.0", "3.9.0"), "3.9.0"),
         )
 
@@ -177,8 +178,8 @@ class ReleaseTests(unittest.TestCase):
                 downloadUrl="https://example.org/13.zip",
             ),
         ]
-        self.assertEqual(updater.curse_candidate(current, files)["id"], 13)
-        self.assertEqual(updater.curse_candidate(current, files[:2])["id"], 10)
+        self.assertEqual(curseforge.curse_candidate(current, files)["id"], 13)
+        self.assertEqual(curseforge.curse_candidate(current, files[:2])["id"], 10)
 
 
 class CurseDiscoveryTests(unittest.TestCase):
@@ -206,9 +207,9 @@ class CurseDiscoveryTests(unittest.TestCase):
         }
         latest = dict(self.current, id=13, fileDate="2026-02-01")
         with patch.object(
-            updater, "request_json", return_value={"data": latest}
+            _api, "request_json", return_value={"data": latest}
         ) as request:
-            self.assertEqual(updater.curse_latest(self.current, project), latest)
+            self.assertEqual(curseforge.curse_latest(self.current, project), latest)
             request.assert_called_once_with(
                 "https://api.curseforge.com/v1/mods/123/files/13"
             )
@@ -220,8 +221,10 @@ class CurseDiscoveryTests(unittest.TestCase):
                 {"fileId": 10, "gameVersion": "1.60.1", "releaseType": 1}
             ],
         }
-        with patch.object(updater, "request_json") as request:
-            self.assertEqual(updater.curse_latest(self.current, project), self.current)
+        with patch.object(_api, "request_json") as request:
+            self.assertEqual(
+                curseforge.curse_latest(self.current, project), self.current
+            )
             request.assert_not_called()
 
     def test_missing_or_unusable_index_falls_back_to_filtered_history(self):
@@ -242,9 +245,9 @@ class CurseDiscoveryTests(unittest.TestCase):
                     self.assertIn("gameVersion=1.60.", url)
                     return {"data": [latest]}
 
-                with patch.object(updater, "request_json", side_effect=response):
+                with patch.object(_api, "request_json", side_effect=response):
                     self.assertEqual(
-                        updater.curse_latest(self.current, project), latest
+                        curseforge.curse_latest(self.current, project), latest
                     )
 
 
@@ -579,7 +582,7 @@ class ProposalTests(unittest.TestCase):
             },
         ]
         with (
-            patch.object(updater, "pages", return_value=releases),
+            patch.object(_api, "pages", return_value=releases),
             patch.object(
                 updater, "download", return_value=("sha256-newhash", directories, None)
             ) as download,
@@ -603,7 +606,7 @@ class ProposalTests(unittest.TestCase):
         expected = "sha256-" + base64.b64encode(bytes.fromhex("ab" * 32)).decode()
         with (
             patch.object(
-                updater, "pages", return_value=[release(version, "2026-01-01"), latest]
+                _api, "pages", return_value=[release(version, "2026-01-01"), latest]
             ),
             patch.object(updater, "discover_directories", return_value=({"New"}, None)),
             patch.object(updater, "download") as download,
@@ -632,7 +635,7 @@ class ProposalTests(unittest.TestCase):
         latest["assets"][0]["digest"] = "sha256:invalid"
         with (
             patch.object(
-                updater, "pages", return_value=[release(version, "2026-01-01"), latest]
+                _api, "pages", return_value=[release(version, "2026-01-01"), latest]
             ),
             self.assertRaisesRegex(ValueError, "digest"),
         ):
@@ -644,7 +647,7 @@ class ProposalTests(unittest.TestCase):
         version = updater.VERSION.search(text)[1]
         releases = [release(version, "2026-01-01")]
         with (
-            patch.object(updater, "pages", return_value=releases),
+            patch.object(_api, "pages", return_value=releases),
             patch.object(updater, "download") as download,
         ):
             self.assertEqual(updater.propose("spoken", text), (text, []))
@@ -659,7 +662,7 @@ class ProposalTests(unittest.TestCase):
         newer = ".".join(fields)
         with (
             patch.object(
-                updater,
+                _api,
                 "pages",
                 return_value=[
                     release(version, "2026-01-01"),
@@ -689,7 +692,7 @@ class ProposalTests(unittest.TestCase):
                 }
             )
         with (
-            patch.object(updater, "pages", return_value=releases) as pages,
+            patch.object(_api, "pages", return_value=releases) as pages,
             patch.object(updater, "download") as download,
         ):
             updater.update(root, ["spoken-english"], apply=False)
