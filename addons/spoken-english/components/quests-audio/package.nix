@@ -1,9 +1,10 @@
 {
-  callPackage,
+  lib,
+  mkAddon,
   fetchurl,
 }:
 
-callPackage ../../component.nix {
+mkAddon {
   pname = "spoken-quests-audio-english";
   version = "2.5.0";
 
@@ -21,5 +22,9 @@ callPackage ../../component.nix {
     "SpokenQuestsAudioGossip"
   ];
 
-  description = "Spoken English quest audio";
+  meta = {
+    description = "Spoken English quest audio";
+    homepage = "https://github.com/rusty-key/spoken-wow";
+    license = lib.licenses.unfree;
+  };
 }

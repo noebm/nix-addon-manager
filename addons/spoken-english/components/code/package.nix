@@ -1,9 +1,10 @@
 {
-  callPackage,
+  lib,
+  mkAddon,
   fetchurl,
 }:
 
-callPackage ../../component.nix {
+mkAddon {
   pname = "spoken";
   version = "3.8.4";
 
@@ -23,5 +24,9 @@ callPackage ../../component.nix {
     "Spoken_Readables"
   ];
 
-  description = "Spoken WoW addon code";
+  meta = {
+    description = "Spoken WoW addon code";
+    homepage = "https://github.com/rusty-key/spoken-wow";
+    license = lib.licenses.unfree;
+  };
 }

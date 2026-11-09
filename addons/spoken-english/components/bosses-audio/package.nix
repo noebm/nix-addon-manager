@@ -1,9 +1,10 @@
 {
-  callPackage,
+  lib,
+  mkAddon,
   fetchurl,
 }:
 
-callPackage ../../component.nix {
+mkAddon {
   pname = "spoken-bosses-audio-english";
   version = "1.0.0";
 
@@ -18,5 +19,9 @@ callPackage ../../component.nix {
     "SpokenBossesAudio"
   ];
 
-  description = "Spoken English boss audio";
+  meta = {
+    description = "Spoken English boss audio";
+    homepage = "https://github.com/rusty-key/spoken-wow";
+    license = lib.licenses.unfree;
+  };
 }
