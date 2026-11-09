@@ -87,6 +87,33 @@ class ReleaseTests(unittest.TestCase):
             (self.current, "3.8.0"),
         )
 
+    def test_github_selects_highest_numeric_version_regardless_of_dates_or_order(self):
+        releases = [
+            release("3.8.0", "2026-03-01"),
+            release("3.10.0", "2026-01-01"),
+            release("3.9.0", "2026-05-01"),
+            release("3.7.1", "2026-06-01"),
+            release("3.10.0.1", "2026-02-01"),
+        ]
+        for ordered in (releases, list(reversed(releases))):
+            with self.subTest(reversed=ordered != releases):
+                self.assertEqual(
+                    updater.github_candidate(self.current, ordered),
+                    (self.current.replace("3.8.0", "3.10.0.1"), "3.10.0.1"),
+                )
+
+    def test_github_ignores_drafts_and_non_numeric_tags(self):
+        releases = [
+            release("3.8.0", "2026-01-01"),
+            dict(release("9.0.0", "2026-03-01"), draft=True),
+            release("nightly", "2026-04-01"),
+            release("3.9.0", "2026-02-01"),
+        ]
+        self.assertEqual(
+            updater.github_candidate(self.current, releases),
+            (self.current.replace("3.8.0", "3.9.0"), "3.9.0"),
+        )
+
     def test_curse_filters_versions_and_release_types(self):
         current = {"id": 10, "gameVersions": ["1.60.1"], "fileDate": "2026-01-01"}
         files = [

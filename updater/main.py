@@ -113,27 +113,29 @@ def github_candidate(url: str, releases: list[GitHubRelease]) -> tuple[str, str]
     if current is None:
         raise ValueError(f"Pinned release {tag} missing upstream; refusing to guess")
 
-    candidates = [
-        release
-        for release in releases
-        if not release["draft"]
-        and not release["prerelease"]
-        and release["tag_name"].startswith(component + "/v")
-        and release["published_at"] > current["published_at"]
-    ]
-    if not candidates:
-        return url, version
-    latest = max(candidates, key=lambda release: release["published_at"])
-    new_version = latest["tag_name"][len(component) + 2 :]
-
-    # Upstream component tags use numeric semantic versions. Reject a release
-    # published later on an older branch rather than silently downgrading.
     def numeric(value: str) -> tuple[int, ...]:
         if not re.fullmatch(r"\d+(?:\.\d+)*", value):
             raise ValueError(f"Unsupported release version: {value}")
         return tuple(map(int, value.split(".")))
 
-    if numeric(new_version) <= numeric(version):
+    current_version = numeric(version)
+    prefix = component + "/v"
+    candidates = [
+        release
+        for release in releases
+        if not release["draft"]
+        and not release["prerelease"]
+        and release["tag_name"].startswith(prefix)
+        and re.fullmatch(r"\d+(?:\.\d+)*", release["tag_name"][len(prefix) :])
+    ]
+    if not candidates:
+        return url, version
+    latest = max(
+        candidates, key=lambda release: numeric(release["tag_name"][len(prefix) :])
+    )
+    new_version = latest["tag_name"][len(prefix) :]
+
+    if numeric(new_version) <= current_version:
         return url, version
     expected = filename.replace(version, new_version)
     assets = [asset for asset in latest["assets"] if asset["name"] == expected]
