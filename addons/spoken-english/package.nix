@@ -20,6 +20,7 @@ stdenvNoCC.mkDerivation {
   dontBuild = true;
 
   passthru = {
+    addonComponents = components;
     addonDirectories = lib.concatMap (component: component.addonDirectories) components;
     srcs = lib.concatMap (component: component.srcs) components;
   };
