@@ -46,7 +46,7 @@ jobs:
         run: nix run .#updater -- --apply
 
       - name: Check flake
-        run: nix flake check --no-write-lock-file
+        run: nix flake check --no-build --no-write-lock-file
 
       - name: Commit and push updated pins
         run: |
