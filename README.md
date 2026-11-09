@@ -48,7 +48,10 @@ unfree licenses can be built.
 Addons are installed under `Interface/AddOns` inside the supplied game path.
 Unrelated addons and game settings under `WTF` are left untouched.
 
-Check that your selected addons support your game flavor and version.
+The installer checks declared addon compatibility against the installed client.
+It rejects mismatched game flavors and addons targeting a newer game interface,
+and warns when an addon targets an older interface. These checks require
+`.flavor.info` in the game directory and `.build.info` there or in its parent.
 
 Preview changes for a game directory containing `Interface/AddOns`:
 
