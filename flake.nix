@@ -17,6 +17,7 @@
       };
       pre-commit-check = git-hooks.lib.${system}.run {
         src = ./.;
+        excludes = [ "^tests/" ];
         hooks.ruff.enable = true;
         hooks.ruff-format.enable = true;
       };
