@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "dungeonjournal";
-  version = "2.0";
+  version = "2.0.1";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9532/329/DungeonJournal-2.0.zip";
-      hash = "sha256-z2X8lTlOj2Qk3cbHIdmX/MZ1YUEbdY2Znotfid/7m3o=";
+      url = "https://edge.forgecdn.net/files/9547/760/ForeverDungeonJournal-2.0.1.zip";
+      hash = "sha256-8EV+kSafufIEnQX30/N/WO8mWslS2owYRQ8CJzsMRbs=";
     })
   ];
 
