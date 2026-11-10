@@ -1,9 +1,9 @@
 """Read local Blizzard client metadata and check declared addon compatibility."""
 
 import csv
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
 from .schemas import GameCompatibility, Manifest
 

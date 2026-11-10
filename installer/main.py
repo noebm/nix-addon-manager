@@ -1,25 +1,25 @@
 """Install Nix-built addon directories without owning any game settings."""
 
 import argparse
-from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field, replace
-from enum import Enum
 import errno
 import fcntl
-from functools import wraps
 import hashlib
-from inspect import isfunction
 import json
 import os
-from pathlib import Path
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
-from typing import TextIO
 import uuid
 import zipfile
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass, field, replace
+from enum import Enum
+from functools import wraps
+from inspect import isfunction
+from pathlib import Path
+from typing import TextIO
 
 from .client import validate_compatibility
 from .schemas import (

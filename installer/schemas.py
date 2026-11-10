@@ -137,7 +137,8 @@ class DirectoryChange:
 
     def __post_init__(self):
         if not isinstance(self.existed, bool):
-            raise ValueError("Transaction existed flag must be a boolean")
+            # Invalid journal data follows the installer's ValueError handling.
+            raise ValueError("Transaction existed flag must be a boolean")  # noqa: TRY004
 
 
 @dataclass
