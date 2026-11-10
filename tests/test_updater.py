@@ -292,6 +292,38 @@ class ArchiveTests(unittest.TestCase):
             updater.validate_archive(archive, 16001), ({"AtlasBIStooltips"}, "2.0")
         )
 
+    def test_explicit_version_toc_ignores_bundled_addon_versions(self):
+        for names in (
+            ["AtlasBIStooltips", "AtlasLootClassic"],
+            ["AtlasLootClassic", "AtlasBIStooltips"],
+        ):
+            entries = {
+                f"{name}\\{name}.toc": (
+                    "## Interface: 16001\n## Version: "
+                    + ("v1.3.4" if name == "AtlasLootClassic" else "2.0")
+                )
+                for name in names
+            }
+            with self.subTest(names=names):
+                self.assertEqual(
+                    updater.validate_archive(
+                        self.archive(entries),
+                        16001,
+                        version_toc="AtlasLootClassic/AtlasLootClassic.toc",
+                    ),
+                    (set(names), "1.3.4"),
+                )
+
+    def test_explicit_version_toc_must_exist_and_have_version(self):
+        for entries in (
+            {"Other/Other.toc": "## Interface: 16001\n## Version: 2.0"},
+            {"Main/Main.toc": "## Interface: 16001"},
+        ):
+            with self.subTest(entries=entries), self.assertRaises(ValueError):
+                updater.validate_archive(
+                    self.archive(entries), 16001, version_toc="Main/Main.toc"
+                )
+
     def test_windows_paths_cannot_escape_staging(self):
         for name in (
             "..\\WTF\\config",
@@ -590,7 +622,7 @@ class ProposalTests(unittest.TestCase):
             result, _ = updater.propose(
                 "spoken-quests-audio-english", text, updater.releases.Retriever()
             )
-            download.assert_called_once_with(new_url, None)
+            download.assert_called_once_with(new_url, None, version_toc=None)
         self.assertEqual(
             result,
             text.replace(old_url, new_url)

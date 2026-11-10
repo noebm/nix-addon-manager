@@ -119,7 +119,7 @@ class RemoteZip(io.RawIOBase):
 
 
 def discover_directories(
-    url: str, interface: int | None
+    url: str, interface: int | None, *, version_toc: str | None = None
 ) -> tuple[set[str], str | None]:
     """Read ZIP paths and TOCs through ranges, falling back when unsupported.
 
@@ -127,9 +127,11 @@ def discover_directories(
     """
     try:
         with RemoteZip(url) as source:
-            return validate_archive(source, interface, check_crc=False)
+            return validate_archive(
+                source, interface, check_crc=False, version_toc=version_toc
+            )
     except RangeUnsupported:
-        _, directories, version = download(url, interface)
+        _, directories, version = download(url, interface, version_toc=version_toc)
         return directories, version
 
 
@@ -147,6 +149,7 @@ def validate_archive(
     interface: int | None,
     *,
     check_crc: bool = True,
+    version_toc: str | None = None,
 ) -> tuple[set[str], str | None]:
     directories = set()
     versions = []
@@ -186,17 +189,21 @@ def validate_archive(
                 version = re.search(
                     r"^##\s*Version\s*:\s*(.+)$", content, re.MULTILINE | re.IGNORECASE
                 )
-                if version:
-                    versions.append(version[1].strip())
+                if version and (version_toc is None or name == version_toc):
+                    versions.append(re.sub(r"^[vV](?=\d)", "", version[1].strip()))
         bad = archive.testzip() if check_crc else None
         if bad:
             raise ValueError(f"Corrupt archive entry: {bad}")
     if not directories or not toc_count:
         raise ValueError("Archive contains no addon TOC files")
+    if version_toc is not None and not versions:
+        raise ValueError(f"Missing package version in {version_toc}")
     return directories, versions[0] if versions else None
 
 
-def download(url: str, interface: int | None) -> tuple[str, set[str], str | None]:
+def download(
+    url: str, interface: int | None, *, version_toc: str | None = None
+) -> tuple[str, set[str], str | None]:
     if urlparse(url).scheme != "https":
         raise ValueError("Release downloads must use HTTPS")
     print(f"Downloading: {url}", file=sys.stderr, flush=True)
@@ -248,7 +255,9 @@ def download(url: str, interface: int | None) -> tuple[str, set[str], str | None
             flush=True,
         )
         archive.seek(0)
-        directories, version = validate_archive(archive, interface)
+        directories, version = validate_archive(
+            archive, interface, version_toc=version_toc
+        )
         print("  Archive validated", file=sys.stderr, flush=True)
     return "sha256-" + base64.b64encode(digest.digest()).decode(), directories, version
 
@@ -275,6 +284,8 @@ def propose(
     expected = set(re.findall(r'"([^"\n]+)"', directory_block[1]))
     compatibility = re.search(r"interface = (\d+);", text)
     interface = int(compatibility[1]) if compatibility else None
+    version_toc_match = re.search(r'versionToc = "([^"\n]+)";', text)
+    version_toc = version_toc_match[1] if version_toc_match else None
     replacements = []
     directories = set()
     changed = False
@@ -305,7 +316,7 @@ def propose(
         if candidate in digests:
             new_hash = digests[candidate]
             component_directories, toc_version = discover_directories(
-                candidate, interface
+                candidate, interface, version_toc=version_toc
             )
             pending_validation.append(
                 PendingValidation(
@@ -317,7 +328,7 @@ def propose(
             )
         else:
             new_hash, component_directories, toc_version = download(
-                candidate, interface
+                candidate, interface, version_toc=version_toc
             )
         if candidate == url and new_hash != old_hash:
             raise ValueError(f"Pinned archive changed upstream: {url}")

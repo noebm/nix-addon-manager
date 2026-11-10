@@ -16,6 +16,8 @@ mkAddon {
     })
   ];
 
+  passthru.versionToc = "AtlasLootClassic/AtlasLootClassic.toc";
+
   nativeBuildInputs = [ libarchive ];
 
   addonDirectories = [

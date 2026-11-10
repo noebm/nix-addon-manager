@@ -123,6 +123,9 @@ Backups and GC roots are retained; automatic pruning is not implemented.
 ## Updating releases
 
 The updater checks for new stable releases and updates pinned versions and hashes.
+Packages with independently versioned bundled addons can set
+`passthru.versionToc` to the archive path of their main addon TOC. AtlasLoot uses
+this to read its own version instead of the bundled BiS tooltips version.
 
 Set `CURSEFORGE_API_KEY` for CurseForge addons. Spoken needs no key;
 `GITHUB_TOKEN` is optional for authenticated GitHub requests.
