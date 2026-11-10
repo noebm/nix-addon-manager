@@ -2,8 +2,8 @@ name: Update addons
 
 on:
   schedule:
-    - cron: '45 12 * * *'
-      timezone: Europe/Amsterdam
+    - cron: '0 6,18 * * *'
+      timezone: UTC
   workflow_dispatch:
 
 permissions:
