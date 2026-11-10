@@ -23,7 +23,6 @@
     in
     {
       packages.${system} = (import ./pkgs { inherit pkgs; }) // (import ./addons { inherit pkgs; });
-      addonModules.spoken = ./modules/spoken.nix;
       formatter.${system} = pkgs.nixfmt-tree;
       checks.${system} = { inherit pre-commit-check; };
       devShells.${system}.default = pkgs.mkShell {

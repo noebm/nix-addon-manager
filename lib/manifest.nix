@@ -13,7 +13,6 @@ let
     inherit pkgs;
     inherit (pkgs) lib;
     addons = import ../addons { inherit pkgs; };
-    modules = flake.addonModules;
   };
   manifest = {
     schema = 1;

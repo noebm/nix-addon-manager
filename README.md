@@ -9,7 +9,6 @@ The project is still at an early stage; expect some slop.
 ## Package structure
 
 - `addons/<name>/`: addon packages and fixed bundles.
-- `modules/`: configurable addon modules.
 - `pkgs/<name>/package.nix`: packages for the installer and updater tools.
 - `installer/` and `updater/`: Python implementations of those tools.
 - `lib/`: shared addon and bundle builders, and manifest evaluation.
@@ -39,7 +38,7 @@ Spoken and AtlasLoot Classic Forever together:
 ]
 ```
 
-The configuration receives `pkgs`, `lib`, `addons`, and `modules`. It describes
+The configuration receives `pkgs`, `lib`, and `addons`. It describes
 the complete desired selection for one game installation.
 
 The installer and the flake's package outputs enable `allowUnfree` so addons with
