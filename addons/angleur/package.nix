@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "angleur";
-  version = "2.9.8-AutoEquipFishingRod";
+  version = "Angleur Forever 2.9.81-EqManAndLuaErrorHotfixes";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9494/10/Angleur-2.9.8-AutoEquipFishingRod.zip";
-      hash = "sha256-go22e6wkg+bekvjHQkmv8uSrIDcAISRJT9o5OLrCY8s=";
+      url = "https://edge.forgecdn.net/files/9554/931/Angleur-2.9.81-EqManAndLuaErrorHotfixes.zip";
+      hash = "sha256-6mW7FvvUZcc/YHANhvK6kj+bXWhqTBaviL2EvO8mHrE=";
     })
   ];
 
