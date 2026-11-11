@@ -10,6 +10,7 @@ let
     books-on-map-forever = self.callPackage ./books-on-map-forever/package.nix { };
     dungeonjournal = self.callPackage ./dungeonjournal/package.nix { };
     kill-on-sight = self.callPackage ./kill-on-sight/package.nix { };
+    maputils = self.callPackage ./maputils/package.nix { };
     spoken-english = self.callPackage ./spoken-english/package.nix { };
   });
 in
@@ -20,6 +21,7 @@ in
     books-on-map-forever
     dungeonjournal
     kill-on-sight
+    maputils
     spoken-english
     ;
 }

@@ -120,6 +120,7 @@ Backups and GC roots are retained; automatic pruning is not implemented.
 | Spoken | `spoken-english` | All English voice packs; unfree audio |
 | DungeonJournal | `dungeonjournal` | Dungeon boss loot and quests; WoW Forever 1.60.1 (interface 16001); unfree |
 | Kill on Sight | `kill-on-sight` | Hostile player and guild tracking with nearby alerts; WoW Forever 1.60.1 (interface 16001) |
+| MapUtils | `maputils` | Dungeon maps, travel routes, and world map improvements; WoW Forever 1.60.1 (interface 16001) |
 
 ## Updating releases
 
