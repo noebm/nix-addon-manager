@@ -154,6 +154,8 @@ def validate_archive(
     directories = set()
     versions = []
     toc_count = 0
+    toc_directories = set()
+    compatible_directories = set()
     with zipfile.ZipFile(source) as archive:
         for entry in archive.infolist():
             name = entry.filename.replace("\\", "/")
@@ -174,6 +176,7 @@ def validate_archive(
             directories.add(path.parts[0])
             if name.lower().endswith(".toc") and len(path.parts) == 2:
                 toc_count += 1
+                toc_directories.add(path.parts[0])
                 content = archive.read(entry).decode("utf-8-sig", errors="replace")
                 interfaces = re.findall(
                     r"^##\s*Interface\s*:\s*(.+)$",
@@ -183,9 +186,9 @@ def validate_archive(
                 if interface is not None and not any(
                     str(interface) in re.findall(r"\d+", value) for value in interfaces
                 ):
-                    raise ValueError(
-                        f"Incompatible or missing Interface in {name}; expected {interface}"
-                    )
+                    continue
+
+                compatible_directories.add(path.parts[0])
                 version = re.search(
                     r"^##\s*Version\s*:\s*(.+)$", content, re.MULTILINE | re.IGNORECASE
                 )
@@ -196,6 +199,13 @@ def validate_archive(
             raise ValueError(f"Corrupt archive entry: {bad}")
     if not directories or not toc_count:
         raise ValueError("Archive contains no addon TOC files")
+    incompatible_directories = toc_directories - compatible_directories
+    if incompatible_directories:
+        raise ValueError(
+            f"Incompatible or missing Interface in TOCs for "
+            f"{', '.join(sorted(incompatible_directories))}; expected {interface}"
+        )
+
     if version_toc is not None and not versions:
         raise ValueError(f"Missing package version in {version_toc}")
     return directories, versions[0] if versions else None

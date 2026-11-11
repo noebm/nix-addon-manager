@@ -260,6 +260,25 @@ class ArchiveTests(unittest.TestCase):
         data.seek(0)
         return data
 
+    def test_multi_client_archive_uses_compatible_toc_version(self):
+        entries = {
+            "Angleur/Angleur_Mists.toc": "## Interface: 50504\n## Version: Mists 2\n",
+            "Angleur/Angleur_Camelot.toc": "## Interface: 16001\n## Version: Forever 2\n",
+        }
+        self.assertEqual(
+            updater.validate_archive(self.archive(entries), 16001),
+            ({"Angleur"}, "Forever 2"),
+        )
+
+    def test_each_addon_with_tocs_requires_a_compatible_variant(self):
+        for incompatible in ("## Interface: 50504\n", "## Version: 2\n"):
+            entries = {
+                "Main/Main.toc": "## Interface: 16001\n## Version: 2\n",
+                "Other/Other.toc": incompatible,
+            }
+            with self.subTest(incompatible=incompatible), self.assertRaises(ValueError):
+                updater.validate_archive(self.archive(entries), 16001)
+
     def test_archive_rejects_escape_links_and_wrong_interface(self):
         for entries in (
             {"../WTF/config": "bad"},
