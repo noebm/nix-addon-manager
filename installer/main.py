@@ -420,6 +420,10 @@ def handle_installations(
         )
 
     registry = InstallationRegistry.from_environment()
+
+    def display(installation):
+        return registry.format_installation(installation, full=args.full)
+
     match args.installation_action:
         case "list":
             installations = registry.list_installations()
@@ -429,10 +433,10 @@ def handle_installations(
 
             for installation, is_default in installations:
                 marker = " (default)" if is_default else ""
-                print(f"  {installation}{marker}")
+                print(f"  {display(installation)}{marker}")
         case "add":
             added = registry.add(Path(args.path))
-            print(f"Installation {added} has been added")
+            print(f"Installation {display(added)} has been added")
         case "default":
             if args.path is None:
                 game_path = registry.default_game_path
@@ -450,13 +454,13 @@ def handle_installations(
                     )
                     sys.exit(1)
 
-                print(f"Installation {selected} has been set as default")
+                print(f"Installation {display(selected)} has been set as default")
         case "remove":
             removed = registry.remove(args.path)
             if removed is None:
                 print(f"Installation {args.path} is already absent")
             else:
-                print(f"Installation {removed} has been removed")
+                print(f"Installation {display(removed)} has been removed")
         case _:
             parser.error(f"Unknown installations action: {args.installation_action}")
 
@@ -473,13 +477,19 @@ def main():
     for name in ("add", "remove", "default"):
         command = installation_commands.add_parser(name)
         command.add_argument(
+            "--full", action="store_true", help="Show complete installation IDs"
+        )
+        command.add_argument(
             "path",
             nargs="?" if name == "default" else None,
             help="Game directory"
             if name == "add"
-            else "Game directory or installation ID",
+            else "Game directory or unique installation ID prefix",
         )
-    installation_commands.add_parser("list")
+    listing = installation_commands.add_parser("list")
+    listing.add_argument(
+        "--full", action="store_true", help="Show complete installation IDs"
+    )
 
     target = parser.add_mutually_exclusive_group()
     target.add_argument("--game-path", type=Path)

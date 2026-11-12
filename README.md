@@ -62,7 +62,10 @@ nix run .#installer -- --config ./addons.nix
 ```
 
 Omit `--game-path` to use the selected default. `--game-path`,
-`installations default`, and `installations remove` accept a directory or installation ID.
+`installations default`, and `installations remove` accept a directory or a unique installation ID prefix.
+IDs display as 4 characters, extended when needed to distinguish installations.
+Use `--full` on an installations command (for example, `installations list --full`)
+to show complete hashes.
 Run `installations default` without an argument to show the current default.
 `installations remove <path-or-id>` unregisters a directory without removing its addons.
 

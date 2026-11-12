@@ -96,6 +96,16 @@ class InstallationRegistry:
         if value in self._document.installations:
             return value
 
+        matches = [
+            identifier
+            for identifier in self._document.installations
+            if value and identifier.startswith(value)
+        ]
+        if len(matches) > 1:
+            raise ValueError(f"Ambiguous installation ID: {value}")
+        if matches:
+            return matches[0]
+
         identifier = installation_id(Path(value).expanduser().resolve())
         if identifier not in self._document.installations:
             return None
@@ -103,8 +113,25 @@ class InstallationRegistry:
         return identifier
 
     def resolve_game_path(self, value: Path) -> Path:
-        entry = self._document.installations.get(str(value))
+        identifier = self._resolve_identifier(str(value))
+        entry = self._document.installations.get(identifier)
         return Path(entry.game) if entry else value.expanduser()
+
+    def format_installation(
+        self, installation: InstallationPath, *, full: bool = False
+    ) -> str:
+        identifier = installation.identifier
+        if not full:
+            length = min(4, len(identifier))
+            others = self._document.installations.keys() - {identifier}
+            while length < len(identifier) and any(
+                other.startswith(identifier[:length]) for other in others
+            ):
+                length += 1
+
+            identifier = identifier[:length]
+
+        return f"{installation.game_path} ({identifier})"
 
     @property
     def default_game_path(self) -> Path | None:

@@ -93,10 +93,11 @@ class InstallationsTests(unittest.TestCase):
     def test_registration_default_selection_and_removal(self):
         output = self.cli("installations", "add", self.game)
         identifier = next(iter(self.registry()["installations"]))
-        self.assertEqual(output, f"Installation {self.game} ({identifier}) has been added\n")
+        self.assertEqual(output, f"Installation {self.game} ({identifier[:4]}) has been added\n")
         entry = self.registry()["installations"][identifier]
         self.assertEqual(entry, {"game": str(self.game)})
-        self.assertIn(identifier, self.cli("installations", "list"))
+        self.assertIn(f"({identifier[:4]})", self.cli("installations", "list"))
+        self.assertIn(f"({identifier})", self.cli("installations", "list", "--full"))
         self.cli("installations", "default", identifier)
         self.assertEqual(self.registry()["default"], identifier)
         with patch.object(
@@ -112,6 +113,38 @@ class InstallationsTests(unittest.TestCase):
         self.assertEqual(self.registry()["installations"], {})
         self.assertIsNone(self.registry()["default"])
         self.assertTrue(self.game.is_dir())
+
+    def test_short_identifiers_resolve_for_all_commands(self):
+        self.cli("installations", "add", self.game)
+        identifier = next(iter(self.registry()["installations"]))
+        prefix = identifier[:4]
+        self.cli("installations", "default", prefix)
+        registry = InstallationRegistry.from_environment()
+        self.assertEqual(registry.resolve_game_path(Path(prefix)), self.game)
+        self.assertEqual(self.registry()["default"], identifier)
+        self.assertIn(f"({identifier})", self.cli("installations", "remove", prefix, "--full"))
+        self.assertEqual(self.registry()["installations"], {})
+
+    def test_colliding_prefixes_extend_display_and_reject_ambiguity(self):
+        registry = InstallationRegistry.from_environment()
+        with registry.edit():
+            registry._document.installations = {
+                "abcd1" + "0" * 59: RegisteredInstallation(str(self.game)),
+                "abcd2" + "0" * 59: RegisteredInstallation("/other"),
+            }
+
+        output = self.cli("installations", "list")
+        self.assertIn("(abcd1)", output)
+        self.assertIn("(abcd2)", output)
+        before = self.registry()
+        for arguments in (("installations", "default", "abcd"),
+                          ("installations", "remove", "abcd"),
+                          ("--game-path", "abcd", "--recover")):
+            errors = StringIO()
+            with redirect_stderr(errors), self.assertRaises(SystemExit):
+                self.cli(*arguments)
+            self.assertIn("Ambiguous installation ID", errors.getvalue())
+            self.assertEqual(self.registry(), before)
 
     def test_alias_registration_does_not_duplicate(self):
         self.cli("installations", "add", self.game)
