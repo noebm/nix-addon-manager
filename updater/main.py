@@ -411,7 +411,7 @@ def update(repository: Path, names: list[str], *, apply: bool = False) -> None:
                     end="",
                 )
     if not proposals:
-        print("All selected addons are up to date")
+        print("No addon updates proposed")
         return
     if not apply:
         print("Preview only; pass --apply to build and write pins")

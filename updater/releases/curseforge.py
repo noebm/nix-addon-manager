@@ -1,6 +1,7 @@
 """CurseForge project discovery and compatible release selection."""
 
 import re
+import sys
 from collections.abc import Iterable
 from typing import NotRequired, TypedDict
 from urllib.parse import urlencode
@@ -162,5 +163,11 @@ def retrieve(url: str, homepage: str | None) -> str:
     latest = curse_latest(current, project)
     candidate = url if latest["id"] == file_id else latest.get("downloadUrl")
     if not candidate:
-        raise ValueError(f"Upstream does not permit downloading {slug}")
+        print(
+            f"Warning: skipping {slug} file {latest['id']}: CurseForge returned no "
+            "download URL; keeping pinned release",
+            file=sys.stderr,
+        )
+        return url
+
     return candidate
