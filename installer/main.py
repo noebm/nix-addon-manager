@@ -3,7 +3,6 @@
 import argparse
 import errno
 import fcntl
-import hashlib
 import json
 import os
 import shutil
@@ -22,6 +21,12 @@ from pathlib import Path
 from typing import TextIO
 
 from .client import validate_compatibility
+from .installations import (
+    InstallationRegistry,
+    installation_id,
+    state_directory,
+    validate_game_path,
+)
 from .schemas import (
     DirectoryChange,
     InstallationState,
@@ -112,19 +117,10 @@ class Installation:
     state_path: Path = field(init=False)
 
     def __post_init__(self):
-        self.game = Path(self.game).resolve(strict=True)
+        self.game = validate_game_path(Path(self.game))
         self.target = self.game / "Interface/AddOns"
-        if not self.target.is_dir() or self.target.resolve() != self.target:
-            raise ValueError("Game path must contain real Interface/AddOns directories")
 
-        state_home = Path(
-            os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state"
-        )
-        if not state_home.is_absolute():
-            state_home = Path.home() / ".local/state"
-
-        identifier = hashlib.sha256(os.fsencode(self.game)).hexdigest()
-        self.control = state_home / "nix-addon-manager" / identifier
+        self.control = state_directory() / installation_id(self.game)
         if self.control.is_symlink():
             raise ValueError("Manager state directory must not be a symlink")
 
@@ -415,9 +411,77 @@ def export_zip(manifest: Manifest, destination: Path) -> None:
         os.link(archive_path, destination)
 
 
+def handle_installations(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> None:
+    if args.game_path or args.export_zip or args.config or args.apply or args.recover:
+        parser.error(
+            "installations commands cannot be combined with installation options"
+        )
+
+    registry = InstallationRegistry.from_environment()
+    match args.installation_action:
+        case "list":
+            installations = registry.list_installations()
+            print("Installations:")
+            if not installations:
+                print("  No installations registered")
+
+            for installation, is_default in installations:
+                marker = " (default)" if is_default else ""
+                print(f"  {installation}{marker}")
+        case "add":
+            added = registry.add(Path(args.path))
+            print(f"Installation {added} has been added")
+        case "default":
+            if args.path is None:
+                game_path = registry.default_game_path
+                if game_path is None:
+                    print("error: No default installation", file=sys.stderr)
+                    sys.exit(1)
+
+                print(game_path)
+            else:
+                selected = registry.set_default(args.path)
+                if selected is None:
+                    print(
+                        f"error: Installation is not registered: {args.path}",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+
+                print(f"Installation {selected} has been set as default")
+        case "remove":
+            removed = registry.remove(args.path)
+            if removed is None:
+                print(f"Installation {args.path} is already absent")
+            else:
+                print(f"Installation {removed} has been removed")
+        case _:
+            parser.error(f"Unknown installations action: {args.installation_action}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    target = parser.add_mutually_exclusive_group(required=True)
+    commands = parser.add_subparsers(dest="command")
+    installations = commands.add_parser(
+        "installations", help="Manage registered game installations"
+    )
+    installation_commands = installations.add_subparsers(
+        dest="installation_action", required=True
+    )
+    for name in ("add", "remove", "default"):
+        command = installation_commands.add_parser(name)
+        command.add_argument(
+            "path",
+            nargs="?" if name == "default" else None,
+            help="Game directory"
+            if name == "add"
+            else "Game directory or installation ID",
+        )
+    installation_commands.add_parser("list")
+
+    target = parser.add_mutually_exclusive_group()
     target.add_argument("--game-path", type=Path)
     target.add_argument(
         "--export-zip",
@@ -436,13 +500,18 @@ def main():
         "--recover", action="store_true", help="Recover an interrupted transaction"
     )
     args = parser.parse_args()
-    if not args.recover and args.config is None:
+    if args.command != "installations" and not args.recover and args.config is None:
         parser.error("--config is required unless using --recover")
 
     if args.export_zip is not None and (args.apply or args.recover):
         parser.error("--export-zip cannot be combined with --apply or --recover")
 
     try:
+        if args.command == "installations":
+            handle_installations(args, parser)
+
+            return
+
         repository = Path(__file__).resolve().parents[1]
 
         if args.export_zip is not None:
@@ -467,7 +536,20 @@ def main():
             print(f"Export complete: {args.export_zip}")
             return
 
-        installation = Installation(args.game_path)
+        registry = InstallationRegistry.from_environment()
+        game_path = (
+            registry.resolve_game_path(args.game_path)
+            if args.game_path is not None
+            else registry.default_game_path
+        )
+        if game_path is None:
+            print(
+                "error: No default installation; use installations default or --game-path",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        installation = Installation(game_path)
         with installation.lock() as locked:
             if args.recover:
                 locked.recover()

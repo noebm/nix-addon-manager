@@ -130,6 +130,38 @@ class InstallationState:
 
 
 @dataclass
+class RegisteredInstallation:
+    """Resolved absolute game directory path, stored as a string for JSON."""
+
+    game: str
+
+
+@dataclass
+class RegistryDocument:
+    """Saved installations and the selected default installation ID."""
+
+    installations: dict[str, RegisteredInstallation] = field(default_factory=dict)
+    default: str | None = None
+    schema: int = 1
+
+    def __post_init__(self):
+        if self.schema != 1:
+            raise ValueError("Unsupported installation registry schema")
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> Self:
+        if value.get("schema") != 1:
+            raise ValueError("Unsupported installation registry schema")
+
+        data = dict(value)
+        data["installations"] = {
+            identifier: RegisteredInstallation(game=entry["game"])
+            for identifier, entry in value["installations"].items()
+        }
+        return cls(**data)
+
+
+@dataclass
 class DirectoryChange:
     """Whether a changed addon path existed before a transaction began."""
 
@@ -165,4 +197,4 @@ class TransactionJournal:
         )
 
 
-JsonDocument = Manifest | InstallationState | TransactionJournal
+JsonDocument = Manifest | InstallationState | TransactionJournal | RegistryDocument

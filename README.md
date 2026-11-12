@@ -52,6 +52,20 @@ It rejects mismatched game flavors and addons targeting a newer game interface,
 and warns when an addon targets an older interface. These checks require
 `.flavor.info` in the game directory and `.build.info` there or in its parent.
 
+Register an installation and select a default:
+
+```sh
+nix run .#installer -- installations add /path/to/WoW/_forever_
+nix run .#installer -- installations default /path/to/WoW/_forever_
+nix run .#installer -- installations list
+nix run .#installer -- --config ./addons.nix
+```
+
+Omit `--game-path` to use the selected default. `--game-path`,
+`installations default`, and `installations remove` accept a directory or installation ID.
+Run `installations default` without an argument to show the current default.
+`installations remove <path-or-id>` unregisters a directory without removing its addons.
+
 Preview changes for a game directory containing `Interface/AddOns`:
 
 ```sh
@@ -93,6 +107,10 @@ nix run .#installer -- --game-path /path/to/WoW/_forever_ --recover
 Addon files and generated manifests live in the Nix store. The game's addon
 directory contains links to the addon files. Your `addons.nix` configuration stays
 where you saved it.
+
+Registrations and the default selection are saved in
+`$XDG_STATE_HOME/nix-addon-manager/installations.json`, defaulting to
+`~/.local/state/nix-addon-manager/installations.json`.
 
 Other installer files live under
 `$XDG_STATE_HOME/nix-addon-manager/<installation-id>/`, defaulting to
