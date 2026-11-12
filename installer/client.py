@@ -8,6 +8,8 @@ from pathlib import Path
 from .schemas import GameCompatibility, Manifest
 
 
+# FIXME: Return a client type with required flavor and interface fields;
+# GameCompatibility permits None for optional addon constraints.
 def detect_client(game: Path) -> GameCompatibility:
     """Select the active build for this client's product, without running it."""
     flavor_path = game / ".flavor.info"
@@ -95,6 +97,8 @@ def validate_compatibility(game: Path, manifest: Manifest) -> None:
     if not packages:
         return
 
+    # FIXME: Detected flavor and interface are populated, but their types permit
+    # None; use a client type with required fields for these comparisons.
     client = detect_client(game)
     for package in packages:
         compatibility = package.compatibility
