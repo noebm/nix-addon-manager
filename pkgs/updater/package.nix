@@ -2,6 +2,7 @@
   lib,
   python3,
   nix,
+  git,
   makeWrapper,
   stdenvNoCC,
 }:
@@ -10,17 +11,29 @@ stdenvNoCC.mkDerivation {
   pname = "nix-addon-updater";
   version = "0.1.0";
   src = lib.cleanSourceWith {
-    src = ../../updater;
+    src = ../..;
     filter = path: type: lib.cleanSourceFilter path type && baseNameOf path != "__pycache__";
   };
   nativeBuildInputs = [ makeWrapper ];
   dontBuild = true;
+  doCheck = true;
+  nativeCheckInputs = [ python3 git ];
+
+  checkPhase = ''
+    runHook preCheck
+
+    export GIT_CONFIG_GLOBAL=/dev/null
+    export GIT_CONFIG_NOSYSTEM=1
+    PYTHONPATH="$PWD:$PWD/tests" python -m unittest test_updater test_releases test_commit_message
+
+    runHook postCheck
+  '';
 
   installPhase = ''
     runHook preInstall
 
     mkdir -p "$out/lib/nix-addon-manager/updater" "$out/bin"
-    cp -r *.py releases "$out/lib/nix-addon-manager/updater/"
+    cp -r updater/*.py updater/releases "$out/lib/nix-addon-manager/updater/"
     makeWrapper ${python3}/bin/python3 "$out/bin/nix-addon-updater" \
       --add-flags "-m updater.main" \
       --prefix PYTHONPATH : "$out/lib/nix-addon-manager" \

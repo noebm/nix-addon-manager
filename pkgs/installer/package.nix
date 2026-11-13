@@ -15,6 +15,17 @@ stdenvNoCC.mkDerivation {
   };
   nativeBuildInputs = [ makeWrapper ];
   dontBuild = true;
+  doCheck = true;
+  nativeCheckInputs = [ python3 ];
+
+  checkPhase = ''
+    runHook preCheck
+
+    # Manifest evaluation needs Nix store access outside the build sandbox.
+    PYTHONPATH="$PWD:$PWD/tests" python -m unittest test_installer test_installations
+
+    runHook postCheck
+  '';
 
   installPhase = ''
     runHook preInstall
