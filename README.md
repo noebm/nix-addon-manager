@@ -105,6 +105,16 @@ Recover an interrupted installation:
 nix run .#installer -- --game-path /path/to/WoW/_forever_ --recover
 ```
 
+List generations or remove an inactive generation by ID or unique prefix:
+
+```console
+nix-addon-manager generations list
+nix-addon-manager generations remove <id>
+```
+
+Use `nix-addon-manager --game-path <path-or-installation-id> generations list` to select an
+installation explicitly.
+
 ## Storage
 
 Addon files and generated manifests live in the Nix store. The game's addon
@@ -127,9 +137,10 @@ path outside the game directory.
 | `lock` | Lock file preventing concurrent operations. |
 | `transaction/` | Pending installation journal, staged links, and recovery links. |
 | `backups/<transaction-id>/` | Previous addon links retained after changes. |
-| `roots/<generation-id>` | Nix GC roots keeping manifests and addon generations available. |
+| `roots/<generation-id>` | Generation links (Nix GC roots) keeping manifests and addons available. |
 
-Backups and GC roots are retained; automatic pruning is not implemented.
+Backups and generations are retained; automatic pruning is not implemented.
+The storage directory remains named `roots/` for compatibility.
 
 ## Supported addons
 

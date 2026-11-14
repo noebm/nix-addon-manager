@@ -22,7 +22,7 @@ stdenvNoCC.mkDerivation {
     runHook preCheck
 
     # Manifest evaluation needs Nix store access outside the build sandbox.
-    PYTHONPATH="$PWD:$PWD/tests" python -m unittest test_installer test_installations
+    PYTHONPATH="$PWD:$PWD/tests" python -m unittest test_installer test_installations test_generations
 
     runHook postCheck
   '';

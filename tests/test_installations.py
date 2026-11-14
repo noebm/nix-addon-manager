@@ -40,6 +40,32 @@ class InstallationsTests(unittest.TestCase):
             (self.root / "state/nix-addon-manager/installations.json").read_text()
         )
 
+    def test_generations_commands_use_default_and_installation_prefix(self):
+        self.cli("installations", "add", self.game)
+        self.cli("installations", "default", self.game)
+        identifier = next(iter(self.registry()["installations"]))
+        installation = installer.Installation(self.game)
+        roots = installation.control / "roots"
+        roots.mkdir()
+        old = roots / "aaaa1111"
+        current = roots / "bbbb2222"
+        old.symlink_to("/nix/store/old-manifest")
+        current.symlink_to("/nix/store/current-manifest")
+        installer.write_json(
+            installation.state_path, installer.InstallationState(manifest=str(current))
+        )
+
+        output = self.cli("generations", "list")
+        self.assertIn("Generations:", output)
+        self.assertIn("aaaa1111", output)
+        self.assertIn("bbbb2222 (current)", output)
+        self.assertIn(
+            "Removed generation: aaaa1111",
+            self.cli("--game-path", identifier[:4], "generations", "remove", "aaaa"),
+        )
+        self.assertFalse(old.is_symlink())
+        self.assertTrue(current.is_symlink())
+
     def test_loads_registration_with_legacy_metadata(self):
         registry_path = self.root / "state/nix-addon-manager/installations.json"
         registry_path.parent.mkdir(parents=True)

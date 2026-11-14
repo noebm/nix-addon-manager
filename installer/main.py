@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TextIO
 
 from .client import validate_compatibility
+from .generations import Generations
 from .installations import (
     InstallationRegistry,
     installation_id,
@@ -103,7 +104,7 @@ class Installation:
         game: Resolved game directory containing Interface/AddOns.
         target: Directory where managed addon symlinks are installed.
         control: Per-game state directory outside the game, holding state,
-            backups, and Nix GC roots.
+            backups, and generation links.
         transaction: Pending transaction directory containing its journal,
             staged links, and previous links for recovery.
         state_path: JSON record of owned addon directories and the committed
@@ -207,6 +208,10 @@ class LockedInstallation:
         return InstallationState.from_dict(
             json.loads(installation.state_path.read_text())
         )
+
+    def generations(self) -> Generations:
+        """Access generations using the currently committed installation state."""
+        return Generations(self._installation.control, self.state().manifest)
 
     def _archive_transaction(self, identifier: str) -> None:
         installation = self._installation
@@ -468,9 +473,57 @@ def handle_installations(
             parser.error(f"Unknown installations action: {args.installation_action}")
 
 
+def handle_generations(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> None:
+    if args.export_zip or args.config or args.apply or args.recover:
+        parser.error(
+            "generations commands cannot be combined with installation actions"
+        )
+    registry = InstallationRegistry.from_environment()
+    selection = args.game_path
+    game = (
+        registry.resolve_game_path(selection)
+        if selection is not None
+        else registry.default_game_path
+    )
+    if game is None:
+        raise ValueError("No default installation; use --game-path")
+
+    installation = Installation(game)
+    with installation.lock() as locked:
+        generations = locked.generations()
+        match args.generation_action:
+            case "remove":
+                removed = generations.remove(args.id)
+                print(f"Removed generation: {removed.name}")
+            case "list":
+                entries = generations.entries()
+                print("Generations:")
+                if not entries:
+                    print("  No generations")
+
+                for generation in entries:
+                    marker = (
+                        " (current)" if str(generation) == generations.current else ""
+                    )
+                    print(f"  {generation.name}{marker} -> {generation.readlink()}")
+            case _:
+                parser.error(f"Unknown generations action: {args.generation_action}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command")
+    generations = commands.add_parser(
+        "generations", help="Manage installation generations"
+    )
+    generation_commands = generations.add_subparsers(
+        dest="generation_action", required=True
+    )
+    generation_commands.add_parser("list")
+    removal = generation_commands.add_parser("remove")
+    removal.add_argument("id", help="Generation ID or unique prefix")
     installations = commands.add_parser(
         "installations", help="Manage registered game installations"
     )
@@ -513,7 +566,7 @@ def main():
         "--recover", action="store_true", help="Recover an interrupted transaction"
     )
     args = parser.parse_args()
-    if args.command != "installations" and not args.recover and args.config is None:
+    if args.command is None and not args.recover and args.config is None:
         parser.error("--config is required unless using --recover")
 
     if args.export_zip is not None and (args.apply or args.recover):
@@ -523,6 +576,10 @@ def main():
         if args.command == "installations":
             handle_installations(args, parser)
 
+            return
+
+        if args.command == "generations":
+            handle_generations(args, parser)
             return
 
         repository = Path(__file__).resolve().parents[1]
@@ -575,9 +632,8 @@ def main():
                 print(f"{operation.value}: {name}", flush=True)
 
             if args.apply:
-                roots = installation.control / "roots"
-                roots.mkdir(exist_ok=True)
-                root = roots / uuid.uuid4().hex
+                generations = locked.generations()
+                root = generations.add()
                 # Keep every generation rooted, including interrupted operations and backups.
                 built = nix_manifest(repository, configuration, out_link=root)
                 if built != manifest:

@@ -724,10 +724,16 @@ class InstallationTests(unittest.TestCase):
                 manifest_root=root,
             )
             self.assertEqual(locked.state().manifest, str(root))
+            generations = locked.generations()
+            self.assertEqual(generations.entries(), [root])
+            with self.assertRaisesRegex(ValueError, "current generation"):
+                generations.remove(root.name)
             locked.reconcile(schemas.Manifest(packages=[]), apply=True)
 
         self.assertTrue(root.is_symlink())
         self.assertTrue(manifest.exists())
+        with self.assertRaisesRegex(RuntimeError, "lock context has exited"):
+            locked.generations()
 
 
 if __name__ == "__main__":
