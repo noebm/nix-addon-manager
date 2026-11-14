@@ -73,9 +73,7 @@ class SchemaTests(unittest.TestCase):
             with patch.object(
                 installer.subprocess, "check_output", return_value=json.dumps(data)
             ):
-                evaluated = installer.nix_manifest(
-                    root, root / "config.nix", build=False
-                )
+                evaluated = installer.nix_manifest(root, root / "config.nix")
             with patch.object(
                 installer.subprocess,
                 "check_output",
@@ -86,7 +84,7 @@ class SchemaTests(unittest.TestCase):
                 ),
             ):
                 built = installer.nix_manifest(
-                    root, root / "config.nix", build=True, out_link=root / "gc-root"
+                    root, root / "config.nix", out_link=root / "gc-root"
                 )
 
         self.assertEqual(evaluated, schemas.Manifest(packages=[]))

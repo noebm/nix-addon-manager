@@ -354,11 +354,14 @@ class LockedInstallation:
 
 
 def nix_manifest(
-    repository: Path, configuration: Path, *, build: bool, out_link: Path | None = None
+    repository: Path, configuration: Path, *, out_link: Path | None = None
 ) -> Manifest:
+    """Evaluate the selection, or build it with a GC root at out_link."""
+
     def nix_string(value):
         return json.dumps(str(value)).replace("${", "\\${")
 
+    build = out_link is not None
     expression = (
         f"import (builtins.toPath {nix_string(repository / 'lib/manifest.nix')}) {{ "
         f"repository = {nix_string(repository)}; "
@@ -373,7 +376,7 @@ def nix_manifest(
         "--expr",
         expression,
     ]
-    if build:
+    if out_link is not None:
         command.extend(["--out-link", str(out_link)])
 
     result = json.loads(subprocess.check_output(command, text=True))
@@ -536,7 +539,6 @@ def main():
                 manifest = nix_manifest(
                     repository,
                     configuration,
-                    build=True,
                     out_link=Path(temporary) / "manifest",
                 )
                 export_zip(manifest, args.export_zip.absolute())
@@ -567,7 +569,7 @@ def main():
                 return
 
             configuration = args.config.resolve(strict=True)
-            manifest = nix_manifest(repository, configuration, build=False)
+            manifest = nix_manifest(repository, configuration)
             plan = locked.reconcile(manifest)
             for name, operation in plan.items():
                 print(f"{operation.value}: {name}", flush=True)
@@ -577,9 +579,7 @@ def main():
                 roots.mkdir(exist_ok=True)
                 root = roots / uuid.uuid4().hex
                 # Keep every generation rooted, including interrupted operations and backups.
-                built = nix_manifest(
-                    repository, configuration, build=True, out_link=root
-                )
+                built = nix_manifest(repository, configuration, out_link=root)
                 if built != manifest:
                     raise ValueError(
                         "Configuration changed during build; preview again"

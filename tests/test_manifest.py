@@ -18,7 +18,7 @@ class ManifestTests(unittest.TestCase):
               addons.books-on-map-forever
               addons.spoken-english
             ]""")
-            before = nix_manifest(repository, configuration, build=False)
+            before = nix_manifest(repository, configuration)
             self.assertEqual(len(before.packages), 6)
 
             configuration.write_text("""{ addons, ... }: [
@@ -33,7 +33,7 @@ class ManifestTests(unittest.TestCase):
                 };
               }))
             ]""")
-            after = nix_manifest(repository, configuration, build=False)
+            after = nix_manifest(repository, configuration)
 
         previous = selected_directories(before)
         selected = selected_directories(after)
