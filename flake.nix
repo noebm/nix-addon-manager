@@ -24,7 +24,9 @@
       };
     in
     {
-      packages.${system} = packages // (import ./addons { inherit pkgs; });
+      packages.${system} = packages // (import ./addons { inherit pkgs; }) // {
+        default = packages.installer;
+      };
       formatter.${system} = pkgs.nixfmt-tree;
       checks.${system} = {
         inherit pre-commit-check;
