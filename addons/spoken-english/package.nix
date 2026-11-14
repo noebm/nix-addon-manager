@@ -5,18 +5,18 @@
 }:
 
 let
-  components = map (path: callPackage path { }) [
-    ./components/code/package.nix
-    ./components/quests-audio/package.nix
-    ./components/readables-audio/package.nix
-    ./components/places-audio/package.nix
-    ./components/bosses-audio/package.nix
-  ];
+  components = lib.mapAttrs (_: path: callPackage path { }) {
+    code = ./components/code/package.nix;
+    quests-audio = ./components/quests-audio/package.nix;
+    readables-audio = ./components/readables-audio/package.nix;
+    places-audio = ./components/places-audio/package.nix;
+    bosses-audio = ./components/bosses-audio/package.nix;
+  };
 in
 mkAddonBundle {
   pname = "spoken-english";
-  inherit (builtins.head components) version;
-  paths = components;
+  inherit (components.code) version;
+  paths = builtins.attrValues components;
 
   meta = {
     description = "Spoken WoW addon with all English voice packs";
