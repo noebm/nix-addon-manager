@@ -66,6 +66,31 @@ class InstallationsTests(unittest.TestCase):
         self.assertFalse(old.is_symlink())
         self.assertTrue(current.is_symlink())
 
+        old.symlink_to("/nix/store/old-manifest")
+        self.assertIn(
+            "Removed generation: aaaa1111",
+            self.cli("generations", "prune"),
+        )
+        self.assertFalse(old.is_symlink())
+        self.assertTrue(current.is_symlink())
+        self.assertIn("No old generations", self.cli("generations", "prune"))
+
+    def test_generations_prune_without_current_preserves_unrelated_files(self):
+        self.cli("installations", "add", self.game)
+        self.cli("installations", "default", self.game)
+        installation = installer.Installation(self.game)
+        roots = installation.control / "roots"
+        roots.mkdir()
+        old = roots / "old"
+        old.symlink_to("/missing-manifest")
+        unrelated = roots / "unrelated"
+        unrelated.write_text("keep")
+
+        self.assertIn("Removed generation: old", self.cli("generations", "prune"))
+        self.assertFalse(old.is_symlink())
+        self.assertEqual(unrelated.read_text(), "keep")
+        self.assertIn("No old generations", self.cli("generations", "prune"))
+
     def test_loads_registration_with_legacy_metadata(self):
         registry_path = self.root / "state/nix-addon-manager/installations.json"
         registry_path.parent.mkdir(parents=True)

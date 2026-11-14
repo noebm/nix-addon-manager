@@ -38,13 +38,6 @@ class GenerationsTests(unittest.TestCase):
         self.assertTrue(self.old.is_symlink())
         self.assertTrue(self.current.is_symlink())
 
-    def test_pending_transaction_blocks_removal(self):
-        (self.control / "transaction").mkdir()
-        with self.assertRaisesRegex(ValueError, "recover"):
-            self.generations.remove("abcd1")
-
-        self.assertTrue(self.old.is_symlink())
-
     def test_does_not_treat_real_files_as_generations(self):
         (self.directory / "unrelated").write_text("keep")
         self.assertEqual(self.generations.entries(), [self.old, self.current])

@@ -211,6 +211,9 @@ class LockedInstallation:
 
     def generations(self) -> Generations:
         """Access generations using the currently committed installation state."""
+        if self._installation.transaction.exists():
+            raise ValueError("Interrupted transaction found; run --recover first")
+
         return Generations(self._installation.control, self.state().manifest)
 
     def _archive_transaction(self, identifier: str) -> None:
@@ -494,6 +497,18 @@ def handle_generations(
     with installation.lock() as locked:
         generations = locked.generations()
         match args.generation_action:
+            case "prune":
+                inactive = [
+                    generation
+                    for generation in generations.entries()
+                    if str(generation) != generations.current
+                ]
+                for generation in inactive:
+                    generations.remove(generation.name)
+                    print(f"Removed generation: {generation.name}")
+
+                if not inactive:
+                    print("No old generations")
             case "remove":
                 removed = generations.remove(args.id)
                 print(f"Removed generation: {removed.name}")
@@ -522,6 +537,10 @@ def main():
         dest="generation_action", required=True
     )
     generation_commands.add_parser("list")
+    generation_commands.add_parser(
+        "prune",
+        help="Remove all inactive generation roots (keeps the current generation)",
+    )
     removal = generation_commands.add_parser("remove")
     removal.add_argument("id", help="Generation ID or unique prefix")
     installations = commands.add_parser(

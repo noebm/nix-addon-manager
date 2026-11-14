@@ -110,7 +110,13 @@ List generations or remove an inactive generation by ID or unique prefix:
 ```console
 nix-addon-manager generations list
 nix-addon-manager generations remove <id>
+nix-addon-manager generations prune
 ```
+
+`generations prune` removes all inactive generation roots, keeping the current
+generation. It refuses to run during an interrupted transaction; use `--recover`
+first. Unrooted store paths become eligible for Nix garbage collection; this
+command does not run Nix garbage collection itself.
 
 Use `nix-addon-manager --game-path <path-or-installation-id> generations list` to select an
 installation explicitly.

@@ -710,6 +710,14 @@ class InstallationTests(unittest.TestCase):
         self.run_install()
         self.assertEqual((self.source / "Test.toc").read_text(), "version one")
 
+    def test_pending_transaction_blocks_generation_access(self):
+        install = installer.Installation(self.game)
+        with install.lock() as locked:
+            install.transaction.mkdir()
+
+            with self.assertRaisesRegex(ValueError, "recover"):
+                locked.generations()
+
     def test_records_and_retains_manifest_root(self):
         root = self.control / "roots/generation"
         root.parent.mkdir(parents=True)

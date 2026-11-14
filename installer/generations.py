@@ -25,9 +25,6 @@ class Generations:
 
     def remove(self, identifier: str) -> Path:
         """Unlink an inactive generation; its former packages become eligible for GC."""
-        if (self.control / "transaction").exists():
-            raise ValueError("Interrupted transaction found; run --recover first")
-
         matches = [
             path
             for path in self.entries()
