@@ -9,6 +9,7 @@ let
     atlasloot-classic-forever = self.callPackage ./atlasloot-classic-forever/package.nix { };
     books-on-map-forever = self.callPackage ./books-on-map-forever/package.nix { };
     dungeonjournal = self.callPackage ./dungeonjournal/package.nix { };
+    faster-loot = self.callPackage ./faster-loot/package.nix { };
     kill-on-sight = self.callPackage ./kill-on-sight/package.nix { };
     maputils = self.callPackage ./maputils/package.nix { };
     spoken-english = self.callPackage ./spoken-english/package.nix { };
@@ -20,6 +21,7 @@ in
     atlasloot-classic-forever
     books-on-map-forever
     dungeonjournal
+    faster-loot
     kill-on-sight
     maputils
     spoken-english
