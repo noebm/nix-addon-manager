@@ -91,6 +91,19 @@ Recover interrupted transactions with [`--recover`](#installation-management) be
 allows Nix garbage collection to reclaim their store paths; it does not run
 garbage collection.
 
+## Supported addons
+
+| Addon | Package | Notes |
+| --- | --- | --- |
+| Angleur | `angleur` | One-button fishing and automatic fishing gear; WoW Forever 1.60.1 (interface 16001); unfree |
+| AtlasLoot Classic Forever | `atlasloot-classic-forever` | BiS tooltips; WoW Forever 1.60.1 (interface 16001) |
+| Books on Map Forever | `books-on-map-forever` | Library book tracking; WoW Forever 1.60.1 (interface 16001); unfree |
+| Spoken | `spoken-english` | All English voice packs; unfree audio |
+| DungeonJournal | `dungeonjournal` | Dungeon boss loot and quests; WoW Forever 1.60.1 (interface 16001); unfree |
+| Faster Loot | `faster-loot` | Instant looting of mobs and containers; WoW Forever 1.60.1 (interface 16001); unfree |
+| Kill on Sight | `kill-on-sight` | Hostile player and guild tracking with nearby alerts; WoW Forever 1.60.1 (interface 16001) |
+| MapUtils | `maputils` | Dungeon maps, travel routes, and world map improvements; WoW Forever 1.60.1 (interface 16001) |
+
 ## Package structure
 
 - `addons/<name>/`: addon packages and fixed bundles.
@@ -128,19 +141,6 @@ path outside the game directory.
 
 Backups and generations are retained; automatic pruning is not implemented.
 The storage directory remains named `roots/` for compatibility.
-
-## Supported addons
-
-| Addon | Package | Notes |
-| --- | --- | --- |
-| Angleur | `angleur` | One-button fishing and automatic fishing gear; WoW Forever 1.60.1 (interface 16001); unfree |
-| AtlasLoot Classic Forever | `atlasloot-classic-forever` | BiS tooltips; WoW Forever 1.60.1 (interface 16001) |
-| Books on Map Forever | `books-on-map-forever` | Library book tracking; WoW Forever 1.60.1 (interface 16001); unfree |
-| Spoken | `spoken-english` | All English voice packs; unfree audio |
-| DungeonJournal | `dungeonjournal` | Dungeon boss loot and quests; WoW Forever 1.60.1 (interface 16001); unfree |
-| Faster Loot | `faster-loot` | Instant looting of mobs and containers; WoW Forever 1.60.1 (interface 16001); unfree |
-| Kill on Sight | `kill-on-sight` | Hostile player and guild tracking with nearby alerts; WoW Forever 1.60.1 (interface 16001) |
-| MapUtils | `maputils` | Dungeon maps, travel routes, and world map improvements; WoW Forever 1.60.1 (interface 16001) |
 
 ## Updating releases
 
