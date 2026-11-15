@@ -136,7 +136,7 @@ class ExportTests(unittest.TestCase):
         config.touch()
         with patch(
             "sys.argv",
-            ["installer", "--config", str(config), "--export-zip", str(self.output)],
+            ["installer", "export", str(config), "--output", str(self.output)],
         ):
             with patch.object(installer, "nix_manifest", return_value=self.manifest):
                 with patch.object(
@@ -178,9 +178,9 @@ class ExportTests(unittest.TestCase):
                     "sys.argv",
                     [
                         "installer",
-                        "--config",
+                        "export",
                         str(config),
-                        "--export-zip",
+                        "--output",
                         str(destination),
                     ],
                 ):

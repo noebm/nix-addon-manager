@@ -26,7 +26,7 @@ Save your [addon selection](#updating-addons) as `addons.nix`, for example:
 Apply it to your game installation:
 
 ```sh
-nix run github:noebm/nix-addon-manager -- --config ./addons.nix --game-path /path/to/WoW/_forever_ --apply
+nix run github:noebm/nix-addon-manager -- update ./addons.nix --game-path /path/to/WoW/_forever_ --apply
 ```
 
 Replace `/path/to/WoW/_forever_` with the game directory containing
@@ -45,10 +45,14 @@ which addon directories will be installed, updated, removed, or kept.
 Addon versions are pinned in this repository and updated by its maintainers.
 Rerun the command to install the versions currently pinned in the repository.
 
-For ZIP export, replace `--game-path … --apply` with `--export-zip ./addons.zip`
-and extract the archive into `Interface/AddOns` on the target machine. The ZIP
-must not already exist. Export creates no installation state and cannot be
-combined with `--game-path`, `--apply`, or `--recover`.
+For ZIP export, use the `export` command:
+
+```sh
+nix run github:noebm/nix-addon-manager -- export ./addons.nix --output ./addons.zip
+```
+
+Extract the archive into `Interface/AddOns` on the target machine. The ZIP
+must not already exist. Export creates no installation state.
 
 ### Installation management
 
@@ -66,20 +70,21 @@ installations command to show full IDs. `installations default` without an argum
 shows the default; `installations remove <path-or-id>` unregisters it without
 removing addons.
 
-If an installation is interrupted, use `--recover` to recover it:
+If an installation is interrupted, use `recover` to recover it:
 
 ```sh
-nix run github:noebm/nix-addon-manager -- --game-path /path/to/WoW/_forever_ --recover
+nix run github:noebm/nix-addon-manager -- recover --game-path /path/to/WoW/_forever_
 ```
 
 Omit `--game-path` to use the default installation. Recovery does not require
-`--config` or `--apply`.
+a configuration.
 
 ### Generation management
 
 Generations retain previous installation states. Use
 `nix run github:noebm/nix-addon-manager --` followed by these arguments.
-Add `--game-path <path-or-id>` to select an installation, or use the default.
+Add `--game-path <path-or-id>` after the generation subcommand to select an
+installation, or use the default.
 
 | Arguments | Action |
 | --- | --- |
@@ -87,7 +92,7 @@ Add `--game-path <path-or-id>` to select an installation, or use the default.
 | `generations remove <id>` | Remove an inactive generation by ID or unique prefix. |
 | `generations prune` | Remove all inactive generation roots. |
 
-Recover interrupted transactions with [`--recover`](#installation-management) before pruning. Removing roots
+Recover interrupted transactions with [`recover`](#installation-management) before pruning. Removing roots
 allows Nix garbage collection to reclaim their store paths; it does not run
 garbage collection.
 

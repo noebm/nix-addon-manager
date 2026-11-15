@@ -212,7 +212,7 @@ class LockedInstallation:
     def generations(self) -> Generations:
         """Access generations using the currently committed installation state."""
         if self._installation.transaction.exists():
-            raise ValueError("Interrupted transaction found; run --recover first")
+            raise ValueError("Interrupted transaction found; run recover first")
 
         return Generations(self._installation.control, self.state().manifest)
 
@@ -263,7 +263,7 @@ class LockedInstallation:
         installation = self._installation
 
         if installation.transaction.exists():
-            raise ValueError("Interrupted transaction found; run --recover first")
+            raise ValueError("Interrupted transaction found; run recover first")
 
         validate_compatibility(installation.game, manifest)
         selected = selected_directories(manifest)
@@ -425,11 +425,6 @@ def export_zip(manifest: Manifest, destination: Path) -> None:
 def handle_installations(
     args: argparse.Namespace, parser: argparse.ArgumentParser
 ) -> None:
-    if args.game_path or args.export_zip or args.config or args.apply or args.recover:
-        parser.error(
-            "installations commands cannot be combined with installation options"
-        )
-
     registry = InstallationRegistry.from_environment()
 
     def display(installation):
@@ -479,10 +474,6 @@ def handle_installations(
 def handle_generations(
     args: argparse.Namespace, parser: argparse.ArgumentParser
 ) -> None:
-    if args.export_zip or args.config or args.apply or args.recover:
-        parser.error(
-            "generations commands cannot be combined with installation actions"
-        )
     registry = InstallationRegistry.from_environment()
     selection = args.game_path
     game = (
@@ -529,20 +520,53 @@ def handle_generations(
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest="command")
+    commands = parser.add_subparsers(dest="command", required=True)
+    update = commands.add_parser("update", help="Preview or apply an addon selection")
+    update.add_argument(
+        "config", type=Path, help="Nix function returning an addon package list"
+    )
+    update.add_argument(
+        "--game-path", type=Path, help="Game directory or unique installation ID prefix"
+    )
+    update.add_argument(
+        "--apply", action="store_true", help="Build, stage, and install the selection"
+    )
+
+    export = commands.add_parser(
+        "export", help="Build and export an addon selection as a ZIP"
+    )
+    export.add_argument(
+        "config", type=Path, help="Nix function returning an addon package list"
+    )
+    export.add_argument(
+        "--output", type=Path, required=True, help="Destination ZIP path"
+    )
+
+    recover = commands.add_parser("recover", help="Recover an interrupted transaction")
+    recover.add_argument(
+        "--game-path", type=Path, help="Game directory or unique installation ID prefix"
+    )
+
     generations = commands.add_parser(
         "generations", help="Manage installation generations"
     )
     generation_commands = generations.add_subparsers(
         dest="generation_action", required=True
     )
-    generation_commands.add_parser("list")
-    generation_commands.add_parser(
+    listing = generation_commands.add_parser("list")
+    pruning = generation_commands.add_parser(
         "prune",
         help="Remove all inactive generation roots (keeps the current generation)",
     )
     removal = generation_commands.add_parser("remove")
     removal.add_argument("id", help="Generation ID or unique prefix")
+    for command in (listing, pruning, removal):
+        command.add_argument(
+            "--game-path",
+            type=Path,
+            help="Game directory or unique installation ID prefix",
+        )
+
     installations = commands.add_parser(
         "installations", help="Manage registered game installations"
     )
@@ -566,30 +590,7 @@ def main():
         "--full", action="store_true", help="Show complete installation IDs"
     )
 
-    target = parser.add_mutually_exclusive_group()
-    target.add_argument("--game-path", type=Path)
-    target.add_argument(
-        "--export-zip",
-        type=Path,
-        metavar="PATH",
-        help="Build and export the selection as a compressed ZIP",
-    )
-    parser.add_argument(
-        "--config", type=Path, help="Nix function returning an addon package list"
-    )
-    action = parser.add_mutually_exclusive_group()
-    action.add_argument(
-        "--apply", action="store_true", help="Build, stage, and install the selection"
-    )
-    action.add_argument(
-        "--recover", action="store_true", help="Recover an interrupted transaction"
-    )
     args = parser.parse_args()
-    if args.command is None and not args.recover and args.config is None:
-        parser.error("--config is required unless using --recover")
-
-    if args.export_zip is not None and (args.apply or args.recover):
-        parser.error("--export-zip cannot be combined with --apply or --recover")
 
     try:
         if args.command == "installations":
@@ -603,10 +604,10 @@ def main():
 
         repository = Path(__file__).resolve().parents[1]
 
-        if args.export_zip is not None:
-            if os.path.lexists(args.export_zip):
+        if args.command == "export":
+            if os.path.lexists(args.output):
                 raise FileExistsError(
-                    errno.EEXIST, os.strerror(errno.EEXIST), args.export_zip
+                    errno.EEXIST, os.strerror(errno.EEXIST), args.output
                 )
 
             configuration = args.config.resolve(strict=True)
@@ -617,11 +618,11 @@ def main():
                     configuration,
                     out_link=Path(temporary) / "manifest",
                 )
-                export_zip(manifest, args.export_zip.absolute())
+                export_zip(manifest, args.output.absolute())
             for package in manifest.packages:
                 print(f"exported: {package.name} {package.version}")
 
-            print(f"Export complete: {args.export_zip}")
+            print(f"Export complete: {args.output}")
             return
 
         registry = InstallationRegistry.from_environment()
@@ -639,7 +640,7 @@ def main():
 
         installation = Installation(game_path)
         with installation.lock() as locked:
-            if args.recover:
+            if args.command == "recover":
                 locked.recover()
                 print("Recovery complete")
                 return

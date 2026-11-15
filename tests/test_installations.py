@@ -35,6 +35,24 @@ class InstallationsTests(unittest.TestCase):
             installer.main()
         return output.getvalue()
 
+    def test_command_arguments_are_scoped(self):
+        for arguments in (
+            (),
+            ("update",),
+            ("export", "addons.nix"),
+            ("recover", "--apply"),
+            ("export", "addons.nix", "--output", "addons.zip", "--game-path", self.game),
+            ("installations", "list", "--apply"),
+        ):
+            with self.subTest(arguments=arguments):
+                with redirect_stderr(StringIO()), self.assertRaises(SystemExit) as failure:
+                    self.cli(*arguments)
+
+                self.assertEqual(failure.exception.code, 2)
+
+    def test_recover_without_config(self):
+        self.assertIn("Recovery complete", self.cli("recover", "--game-path", self.game))
+
     def registry(self):
         return json.loads(
             (self.root / "state/nix-addon-manager/installations.json").read_text()
@@ -61,7 +79,7 @@ class InstallationsTests(unittest.TestCase):
         self.assertIn("bbbb2222 (current)", output)
         self.assertIn(
             "Removed generation: aaaa1111",
-            self.cli("--game-path", identifier[:4], "generations", "remove", "aaaa"),
+            self.cli("generations", "remove", "aaaa", "--game-path", identifier[:4]),
         )
         self.assertFalse(old.is_symlink())
         self.assertTrue(current.is_symlink())
@@ -156,9 +174,9 @@ class InstallationsTests(unittest.TestCase):
         ):
             config = self.root / "addons.nix"
             config.touch()
-            self.assertIn("Preview only", self.cli("--config", config))
+            self.assertIn("Preview only", self.cli("update", config))
             self.assertIn(
-                "Preview only", self.cli("--game-path", identifier, "--config", config)
+                "Preview only", self.cli("update", config, "--game-path", identifier)
             )
         self.cli("installations", "remove", self.game)
         self.assertEqual(self.registry()["installations"], {})
@@ -190,7 +208,7 @@ class InstallationsTests(unittest.TestCase):
         before = self.registry()
         for arguments in (("installations", "default", "abcd"),
                           ("installations", "remove", "abcd"),
-                          ("--game-path", "abcd", "--recover")):
+                          ("recover", "--game-path", "abcd")):
             errors = StringIO()
             with redirect_stderr(errors), self.assertRaises(SystemExit):
                 self.cli(*arguments)
@@ -283,7 +301,7 @@ class InstallationsTests(unittest.TestCase):
     def test_missing_default_reports_cli_error(self):
         errors = StringIO()
         with redirect_stderr(errors), self.assertRaises(SystemExit) as failure:
-            self.cli("--config", self.root / "addons.nix")
+            self.cli("update", self.root / "addons.nix")
 
         self.assertEqual(failure.exception.code, 1)
         self.assertIn("No default installation", errors.getvalue())
