@@ -6,17 +6,6 @@ game installation independently of your host configuration.
 
 The project is still at an early stage; expect some slop.
 
-## Package structure
-
-- `addons/<name>/`: addon packages and fixed bundles.
-- `pkgs/<name>/package.nix`: packages for the installer and updater tools.
-- `installer/` and `updater/`: Python implementations of those tools.
-- `lib/`: shared addon and bundle builders, and manifest evaluation.
-
-Addon and tool packages are exposed through the flake's `packages` output.
-Releases and download hashes are pinned in addon and component definitions;
-`flake.lock` pins the flake's dependencies.
-
 ## Usage
 
 > [!NOTE]
@@ -148,6 +137,17 @@ Use `--full` on an installations command (for example, `installations list --ful
 to show complete hashes.
 Run `installations default` without an argument to show the current default.
 `installations remove <path-or-id>` unregisters a directory without removing its addons.
+
+## Package structure
+
+- `addons/<name>/`: addon packages and fixed bundles.
+- `pkgs/<name>/package.nix`: packages for the installer and updater tools.
+- `installer/` and `updater/`: Python implementations of those tools.
+- `lib/`: shared addon and bundle builders, and manifest evaluation.
+
+Addon and tool packages are exposed through the flake's `packages` output.
+Releases and download hashes are pinned in addon and component definitions;
+`flake.lock` pins the flake's dependencies.
 
 ## Storage
 
