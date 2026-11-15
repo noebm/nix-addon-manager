@@ -19,7 +19,13 @@ Releases and download hashes are pinned in addon and component definitions;
 
 ## Usage
 
+> [!NOTE]
+> Requires Nix with flakes enabled.
+
 ### TLDR
+
+Save your addon selection as `addons.nix`, for example:
+
 ```nix
 { addons, ... }:
 [
@@ -28,16 +34,20 @@ Releases and download hashes are pinned in addon and component definitions;
 ]
 ```
 
-To apply the configuration use
-```nix
-nix run <repo> -- --config ./addons.nix --game-path <game-path> --apply
+Apply it to your game installation:
+
+```sh
+nix run github:noebm/nix-addon-manager -- --config ./addons.nix --game-path /path/to/WoW/_forever_ --apply
 ```
+
+Replace `/path/to/WoW/_forever_` with the game directory containing
+`Interface/AddOns` and `.flavor.info`, with `.build.info` there or in its parent.
+Omit `--apply` to preview the changes first.
 
 ### More infos
 
-Requires Nix with flakes enabled.
-
-Create an `addons.nix` configuration selecting your addons. For example, to install
+Create an `addons.nix` configuration selecting your addons.
+For example, to install
 Spoken and AtlasLoot Classic Forever together:
 
 ```nix
@@ -48,12 +58,13 @@ Spoken and AtlasLoot Classic Forever together:
 ]
 ```
 
-To apply the configuration use
-```
-
-```
-
 The configuration also receives `pkgs`, `lib`, and `addons`.
+
+To apply the configuration use
+
+```sh
+nix run github:noebm/nix-addon-manager -- --config ./addons.nix --game-path /path/to/WoW/_forever_ --apply
+```
 
 The installer and the flake's package outputs enable `allowUnfree` so addons with
 unfree licenses can be built.
@@ -69,9 +80,9 @@ and warns when an addon targets an older interface. These checks require
 Register an installation and select a default:
 
 ```sh
-nix run . -- installations add /path/to/WoW/_forever_
-nix run . -- installations default /path/to/WoW/_forever_
-nix run . -- installations list
+nix run github:noebm/nix-addon-manager -- installations add /path/to/WoW/_forever_
+nix run github:noebm/nix-addon-manager -- installations default /path/to/WoW/_forever_
+nix run github:noebm/nix-addon-manager -- installations list
 ```
 
 Omit `--game-path` to use the selected default. `--game-path`,
@@ -85,7 +96,7 @@ Run `installations default` without an argument to show the current default.
 Preview changes for a game directory containing `Interface/AddOns`:
 
 ```sh
-nix run .#installer -- --game-path /path/to/WoW/_forever_ --config ./addons.nix
+nix run github:noebm/nix-addon-manager -- --game-path /path/to/WoW/_forever_ --config ./addons.nix
 ```
 
 The preview lists these operations:
@@ -98,13 +109,13 @@ The preview lists these operations:
 Apply the selection:
 
 ```sh
-nix run .#installer -- --game-path /path/to/WoW/_forever_ --config ./addons.nix --apply
+nix run github:noebm/nix-addon-manager -- --game-path /path/to/WoW/_forever_ --config ./addons.nix --apply
 ```
 
 Export the same selection as a compressed ZIP without a game directory:
 
 ```sh
-nix run .#installer -- --config ./addons.nix --export-zip ./addons.zip
+nix run github:noebm/nix-addon-manager -- --config ./addons.nix --export-zip ./addons.zip
 ```
 
 The export builds the pinned packages and includes actual files, with addon folders
@@ -115,7 +126,7 @@ No installation state is created. The destination must not already exist;
 Recover an interrupted installation:
 
 ```sh
-nix run .#installer -- --game-path /path/to/WoW/_forever_ --recover
+nix run github:noebm/nix-addon-manager -- --game-path /path/to/WoW/_forever_ --recover
 ```
 
 List generations or remove an inactive generation by ID or unique prefix:
