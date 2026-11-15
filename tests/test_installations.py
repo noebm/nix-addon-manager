@@ -35,6 +35,15 @@ class InstallationsTests(unittest.TestCase):
             installer.main()
         return output.getvalue()
 
+    def test_argument_errors_use_command_name(self):
+        errors = StringIO()
+        with redirect_stderr(errors), self.assertRaises(SystemExit) as failure:
+            self.cli("--foo")
+
+        self.assertEqual(failure.exception.code, 2)
+        self.assertIn("usage: nix-addon-manager ", errors.getvalue())
+        self.assertIn("nix-addon-manager: error:", errors.getvalue())
+
     def test_command_arguments_are_scoped(self):
         for arguments in (
             (),

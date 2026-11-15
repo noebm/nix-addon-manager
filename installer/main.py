@@ -519,7 +519,7 @@ def handle_generations(
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(prog="nix-addon-manager", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     update = commands.add_parser("update", help="Preview or apply an addon selection")
     update.add_argument(
