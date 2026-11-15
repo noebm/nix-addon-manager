@@ -19,13 +19,23 @@ Releases and download hashes are pinned in addon and component definitions;
 
 ## Usage
 
-Requires Nix with flakes enabled.
-
-Build an individual package:
-
-```sh
-nix build .#<package-name>
+### TLDR
+```nix
+{ addons, ... }:
+[
+  addons.spoken-english
+  addons.atlasloot-classic-forever
+]
 ```
+
+To apply the configuration use
+```nix
+nix run <repo> -- --config ./addons.nix --game-path <game-path> --apply
+```
+
+### More infos
+
+Requires Nix with flakes enabled.
 
 Create an `addons.nix` configuration selecting your addons. For example, to install
 Spoken and AtlasLoot Classic Forever together:
@@ -38,8 +48,12 @@ Spoken and AtlasLoot Classic Forever together:
 ]
 ```
 
-The configuration receives `pkgs`, `lib`, and `addons`. It describes
-the complete desired selection for one game installation.
+To apply the configuration use
+```
+
+```
+
+The configuration also receives `pkgs`, `lib`, and `addons`.
 
 The installer and the flake's package outputs enable `allowUnfree` so addons with
 unfree licenses can be built.
@@ -55,10 +69,9 @@ and warns when an addon targets an older interface. These checks require
 Register an installation and select a default:
 
 ```sh
-nix run .#installer -- installations add /path/to/WoW/_forever_
-nix run .#installer -- installations default /path/to/WoW/_forever_
-nix run .#installer -- installations list
-nix run .#installer -- --config ./addons.nix
+nix run . -- installations add /path/to/WoW/_forever_
+nix run . -- installations default /path/to/WoW/_forever_
+nix run . -- installations list
 ```
 
 Omit `--game-path` to use the selected default. `--game-path`,
