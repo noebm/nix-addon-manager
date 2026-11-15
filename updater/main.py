@@ -453,6 +453,7 @@ def update(repository: Path, names: list[str], *, apply: bool = False) -> None:
             [
                 "nix",
                 "build",
+                "--quiet",
                 "--no-link",
                 "--no-write-lock-file",
                 *[f"path:{staged}#{name}" for name in sorted(build_names)],
