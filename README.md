@@ -29,6 +29,10 @@ Apply it to your game installation:
 nix run github:noebm/nix-addon-manager -- update ./addons.nix --game-path /path/to/WoW/_forever_ --apply
 ```
 
+> [!TIP]
+> If expected updates are not found, add `--refresh` before the `--` separator
+> to refresh Nix's cache: `nix run --refresh github:noebm/nix-addon-manager -- update ...`.
+
 Replace `/path/to/WoW/_forever_` with the game directory containing
 `Interface/AddOns` and `.flavor.info`, with `.build.info` there or in its parent.
 Omit `--apply` to [preview the changes](#updating-addons) first.
