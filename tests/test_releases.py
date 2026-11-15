@@ -1,4 +1,5 @@
 import io
+import os
 import unittest
 from unittest.mock import patch
 
@@ -61,7 +62,11 @@ class RetrievalTests(unittest.TestCase):
                 {"fileId": 1002, "gameVersion": "1.60.1", "releaseType": 1}
             ],
         }
-        for download_url in ({}, {"downloadUrl": None}, {"downloadUrl": ""}):
+        for download_url, actions in (
+            (value, actions)
+            for value in ({}, {"downloadUrl": None}, {"downloadUrl": ""})
+            for actions in ("true", "false")
+        ):
             latest = dict(
                 current,
                 id=1002,
@@ -71,7 +76,9 @@ class RetrievalTests(unittest.TestCase):
                 **download_url,
             )
             with (
-                self.subTest(download_url=download_url),
+                self.subTest(download_url=download_url, actions=actions),
+                patch.dict(os.environ, {"GITHUB_ACTIONS": actions}),
+                patch("sys.stdout", new_callable=io.StringIO) as annotations,
                 patch.object(
                     _api,
                     "request_json",
@@ -91,6 +98,13 @@ class RetrievalTests(unittest.TestCase):
                 self.assertIn("addon", warnings.getvalue())
                 self.assertIn("1002", warnings.getvalue())
                 self.assertIn("keeping pinned", warnings.getvalue())
+                if actions == "true":
+                    self.assertEqual(
+                        annotations.getvalue(),
+                        "::warning::" + warnings.getvalue().removeprefix("Warning: "),
+                    )
+                else:
+                    self.assertEqual(annotations.getvalue(), "")
 
     def test_unsupported_sources_and_missing_homepage_fail_before_requests(self):
         retriever = releases.Retriever()
