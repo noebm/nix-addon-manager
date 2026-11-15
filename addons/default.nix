@@ -10,6 +10,7 @@ let
     books-on-map-forever = self.callPackage ./books-on-map-forever/package.nix { };
     dungeonjournal = self.callPackage ./dungeonjournal/package.nix { };
     faster-loot = self.callPackage ./faster-loot/package.nix { };
+    forever-leveling-bis = self.callPackage ./forever-leveling-bis/package.nix { };
     gearquest-forever = self.callPackage ./gearquest-forever/package.nix { };
     kill-on-sight = self.callPackage ./kill-on-sight/package.nix { };
     maputils = self.callPackage ./maputils/package.nix { };
@@ -23,6 +24,7 @@ in
     books-on-map-forever
     dungeonjournal
     faster-loot
+    forever-leveling-bis
     gearquest-forever
     kill-on-sight
     maputils
