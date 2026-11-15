@@ -44,7 +44,7 @@ Replace `/path/to/WoW/_forever_` with the game directory containing
 `Interface/AddOns` and `.flavor.info`, with `.build.info` there or in its parent.
 Omit `--apply` to preview the changes first.
 
-### More infos
+### More information
 
 Create an `addons.nix` configuration selecting your addons.
 For example, to install
@@ -77,21 +77,7 @@ It rejects mismatched game flavors and addons targeting a newer game interface,
 and warns when an addon targets an older interface. These checks require
 `.flavor.info` in the game directory and `.build.info` there or in its parent.
 
-Register an installation and select a default:
-
-```sh
-nix run github:noebm/nix-addon-manager -- installations add /path/to/WoW/_forever_
-nix run github:noebm/nix-addon-manager -- installations default /path/to/WoW/_forever_
-nix run github:noebm/nix-addon-manager -- installations list
-```
-
-Omit `--game-path` to use the selected default. `--game-path`,
-`installations default`, and `installations remove` accept a directory or a unique installation ID prefix.
-IDs display as 4 characters, extended when needed to distinguish installations.
-Use `--full` on an installations command (for example, `installations list --full`)
-to show complete hashes.
-Run `installations default` without an argument to show the current default.
-`installations remove <path-or-id>` unregisters a directory without removing its addons.
+#### Updating addons
 
 Preview changes for a game directory containing `Interface/AddOns`:
 
@@ -144,6 +130,24 @@ command does not run Nix garbage collection itself.
 
 Use `nix-addon-manager --game-path <path-or-installation-id> generations list` to select an
 installation explicitly.
+
+#### Installation management
+
+Register an installation and select a default:
+
+```sh
+nix run github:noebm/nix-addon-manager -- installations add /path/to/WoW/_forever_
+nix run github:noebm/nix-addon-manager -- installations default /path/to/WoW/_forever_
+nix run github:noebm/nix-addon-manager -- installations list
+```
+
+Omit `--game-path` to use the selected default. `--game-path`,
+`installations default`, and `installations remove` accept a directory or a unique installation ID prefix.
+IDs display as 4 characters, extended when needed to distinguish installations.
+Use `--full` on an installations command (for example, `installations list --full`)
+to show complete hashes.
+Run `installations default` without an argument to show the current default.
+`installations remove <path-or-id>` unregisters a directory without removing its addons.
 
 ## Storage
 
