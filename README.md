@@ -81,17 +81,17 @@ or omit it to use the default.
 
 ### Generation management
 
-__Generations currently retain all previous installation states.__
-Removing roots allows Nix garbage collection to reclaim their store paths;
-it does not run garbage collection.
+Each update saves a generation of your installation. **Previous generations are
+not removed automatically.** After you remove them, Nix can free the space they
+used the next time garbage collection runs.
 
 Manage retained generations with these commands.
 
 | Arguments | Action |
 | --- | --- |
-| `generations list` | List retained generations. |
+| `generations list` | List saved generations. |
 | `generations remove <id>` | Remove an inactive generation by ID or unique prefix. |
-| `generations prune` | Remove all inactive generation roots. |
+| `generations prune` | Remove all inactive generations. |
 
 Add `--game-path <path-or-id>` after the generation subcommand to select an
 installation, or use the default.
