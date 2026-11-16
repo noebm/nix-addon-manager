@@ -11,6 +11,10 @@ The project is still at an early stage; expect some slop.
 > [!NOTE]
 > Requires Nix with flakes enabled.
 
+Run the commands in this section with `nix run github:noebm/nix-addon-manager --`
+(or explicitly `nix run github:noebm/nix-addon-manager#installer --`), followed by
+the command and its arguments.
+
 ### TLDR
 
 Save your [addon selection](#updating-addons) as `addons.nix`, for example:
@@ -44,51 +48,44 @@ The configuration receives `addons`, `pkgs`, and `lib`; unfree addons are enable
 The installer leaves unrelated addons and `WTF` settings untouched. It rejects
 mismatched game flavors and newer addon interfaces, and warns about older ones.
 
-Edit `addons.nix` and rerun the [command](#tldr). Without `--apply`, the preview shows
-which addon directories will be installed, updated, removed, or kept.
+Edit `addons.nix` and use these commands to preview, apply, or export your selection:
+
+| Arguments | Action |
+| --- | --- |
+| `update ./addons.nix [--apply]` | Preview the changes and use `--apply` to apply them. |
+| `export ./addons.nix --output ./addons.zip` | Export the selected addons as a ZIP archive. |
+
+Add `--game-path <path-or-id>` to an update command to select an installation,
+or use the default.
+
 Addon versions are pinned in this repository and updated by its maintainers.
 Rerun the command to install the versions currently pinned in the repository.
 
-For ZIP export, use the `export` command:
-
-```sh
-nix run github:noebm/nix-addon-manager -- export ./addons.nix --output ./addons.zip
-```
-
-Extract the archive into `Interface/AddOns` on the target machine. The ZIP
+For ZIP exports, extract the archive into `Interface/AddOns` on the target machine. The ZIP
 must not already exist. Export creates no installation state.
 
 ### Installation management
 
-Register an installation and select a default:
+| Arguments | Action |
+| --- | --- |
+| `installations add <path>` | Register a game installation. |
+| `installations list` | List registered installations. |
+| `installations default [<path-or-id>]` | Set the default installation with `<path-or-id>`, or omit it to show the default. |
+| `installations remove <path-or-id>` | Unregister an installation without removing addons. |
+| `recover` | Recover an interrupted installation without a configuration. |
 
-```sh
-nix run github:noebm/nix-addon-manager -- installations add /path/to/WoW/_forever_
-nix run github:noebm/nix-addon-manager -- installations default /path/to/WoW/_forever_
-nix run github:noebm/nix-addon-manager -- installations list
-```
-
-Omit `--game-path` to use the default. `--game-path`, `installations default`, and
-`installations remove` accept a path or unique ID prefix. Use `--full` on an
-installations command to show full IDs. `installations default` without an argument
-shows the default; `installations remove <path-or-id>` unregisters it without
-removing addons.
-
-If an installation is interrupted, use `recover` to recover it:
-
-```sh
-nix run github:noebm/nix-addon-manager -- recover --game-path /path/to/WoW/_forever_
-```
-
-Omit `--game-path` to use the default installation. Recovery does not require
-a configuration.
+`--game-path`, `installations default`, and `installations remove` accept a path
+or unique ID prefix. Use `--full` on an installations command to show full IDs.
+Add `--game-path <path-or-id>` to `recover` to select an installation,
+or omit it to use the default.
 
 ### Generation management
 
-Generations retain previous installation states. Use
-`nix run github:noebm/nix-addon-manager --` followed by these arguments.
-Add `--game-path <path-or-id>` after the generation subcommand to select an
-installation, or use the default.
+__Generations currently retain all previous installation states.__
+Removing roots allows Nix garbage collection to reclaim their store paths;
+it does not run garbage collection.
+
+Manage retained generations with these commands.
 
 | Arguments | Action |
 | --- | --- |
@@ -96,9 +93,8 @@ installation, or use the default.
 | `generations remove <id>` | Remove an inactive generation by ID or unique prefix. |
 | `generations prune` | Remove all inactive generation roots. |
 
-Recover interrupted transactions with [`recover`](#installation-management) before pruning. Removing roots
-allows Nix garbage collection to reclaim their store paths; it does not run
-garbage collection.
+Add `--game-path <path-or-id>` after the generation subcommand to select an
+installation, or use the default.
 
 ## Supported addons
 
