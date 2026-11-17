@@ -8,6 +8,55 @@ from updater.releases import _api
 
 
 class RetrievalTests(unittest.TestCase):
+    def test_curseforge_missing_url_uses_file_id_and_encoded_filename(self):
+        current = {
+            "id": 9650001,
+            "gameVersions": ["1.60.1"],
+            "fileDate": "2026-01-01",
+        }
+        project = {
+            "id": 123,
+            "slug": "addon",
+            "latestFilesIndexes": [
+                {"fileId": 9650016, "gameVersion": "1.60.1", "releaseType": 1}
+            ],
+        }
+        for metadata in ({}, {"downloadUrl": None}, {"downloadUrl": ""}):
+            latest = dict(
+                current,
+                id=9650016,
+                fileDate="2026-02-01",
+                releaseType=1,
+                isAvailable=True,
+                fileName="Addon 2+#.zip",
+                **metadata,
+            )
+            with (
+                self.subTest(metadata=metadata),
+                patch.object(
+                    _api,
+                    "request_json",
+                    side_effect=[
+                        {"data": [project]},
+                        {"data": current},
+                        {"data": latest},
+                    ],
+                ),
+                patch("sys.stderr", new_callable=io.StringIO) as warnings,
+            ):
+                result = releases.Retriever().retrieve(
+                    "https://edge.forgecdn.net/files/9650/1/Addon.zip",
+                    homepage="https://www.curseforge.com/wow/addons/addon",
+                )
+
+            self.assertEqual(
+                result,
+                releases.Release(
+                    url="https://edge.forgecdn.net/files/9650/16/Addon%202%2B%23.zip"
+                ),
+            )
+            self.assertEqual(warnings.getvalue(), "")
+
     def test_curseforge_retrieval_skips_invalid_projects_and_returns_release(self):
         current = {
             "id": 1001,

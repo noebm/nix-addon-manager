@@ -5,7 +5,7 @@ import re
 import sys
 from collections.abc import Iterable
 from typing import NotRequired, TypedDict
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from . import _api
 from ._api import JSON, field, json_dict, json_list
@@ -18,6 +18,7 @@ class CurseFile(TypedDict):
     releaseType: NotRequired[int]
     isAvailable: NotRequired[bool]
     downloadUrl: NotRequired[str | None]
+    fileName: NotRequired[str]
 
 
 class CurseFileIndex(TypedDict):
@@ -50,6 +51,8 @@ def parse_curse_file(value: JSON) -> CurseFile:
         parsed["downloadUrl"] = (
             None if record["downloadUrl"] is None else field(record, "downloadUrl", str)
         )
+    if "fileName" in record:
+        parsed["fileName"] = field(record, "fileName", str)
     return parsed
 
 
@@ -163,6 +166,14 @@ def retrieve(url: str, homepage: str | None) -> str:
     )
     latest = curse_latest(current, project)
     candidate = url if latest["id"] == file_id else latest.get("downloadUrl")
+    if not candidate and latest.get("fileName"):
+        # The API can omit downloadUrl for published files. Use the same CDN
+        # layout as pinned sources; the updater still downloads and checks it.
+        directory, number = divmod(latest["id"], 1000)
+        candidate = f"https://edge.forgecdn.net/files/{directory}/{number}/" + quote(
+            latest["fileName"], safe=""
+        )
+
     if not candidate:
         message = (
             f"skipping {slug} file {latest['id']}: CurseForge returned no "
