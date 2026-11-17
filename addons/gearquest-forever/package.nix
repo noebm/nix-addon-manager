@@ -6,28 +6,29 @@
 
 mkAddon {
   pname = "gearquest-forever";
-  version = "1.2.0";
+  version = "1.2.1";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9638/287/GearQuestForever-v1.2.0.zip";
-      hash = "sha256-MhoQfJ69vwpszn9vdhraDICBZVLFE1sNhwcz/lqwW9Y=";
+      url = "https://edge.forgecdn.net/files/9665/189/GearQuestForever-v1.2.1.zip";
+      hash = "sha256-Ol0DP4zf/P6uS3hJDY30pcDF2l+ZmzICIBKuJBpZ12A=";
     })
   ];
 
   addonDirectories = [
-    "GearQuestForever"
-    "GearQuestForever_DRUID"
-    "GearQuestForever_HUNTER"
-    "GearQuestForever_Languages"
-    "GearQuestForever_MAGE"
-    "GearQuestForever_PALADIN"
-    "GearQuestForever_PRIEST"
-    "GearQuestForever_ROGUE"
-    "GearQuestForever_SHAMAN"
-    "GearQuestForever_WARLOCK"
-    "GearQuestForever_WARRIOR"
-  ];
+      "GearQuestForever"
+      "GearQuestForever_DRUID"
+      "GearQuestForever_HUNTER"
+      "GearQuestForever_ItemStats"
+      "GearQuestForever_Languages"
+      "GearQuestForever_MAGE"
+      "GearQuestForever_PALADIN"
+      "GearQuestForever_PRIEST"
+      "GearQuestForever_ROGUE"
+      "GearQuestForever_SHAMAN"
+      "GearQuestForever_WARLOCK"
+      "GearQuestForever_WARRIOR"
+    ];
   gameCompatibility = {
     flavor = "forever";
     interface = 16001;

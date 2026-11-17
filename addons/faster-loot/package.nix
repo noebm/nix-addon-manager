@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "faster-loot";
-  version = "20261016";
+  version = "20261117";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9657/496/FasterLoot-20261116-3.zip";
-      hash = "sha256-2tOA3H8CMcmjfOc5f+5lK4btCpKlPiD9zcAnS2QWG8I=";
+      url = "https://edge.forgecdn.net/files/9663/533/FasterLoot-20261117.zip";
+      hash = "sha256-r8yh4sSsXz4LhHZacKV7BisaoU1pgjQOFW9zScVI6I0=";
     })
   ];
 
