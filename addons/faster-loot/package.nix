@@ -10,8 +10,8 @@ mkAddon {
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9205/801/FasterLoot.zip";
-      hash = "sha256-v8rRFEXRxK3wjpbMp9zqYLefic8UhJYbzFnuRtzmbhU=";
+      url = "https://edge.forgecdn.net/files/9657/496/FasterLoot-20261116-3.zip";
+      hash = "sha256-2tOA3H8CMcmjfOc5f+5lK4btCpKlPiD9zcAnS2QWG8I=";
     })
   ];
 
