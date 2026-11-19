@@ -3,6 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
+from updater.log import configure_logging, logger
 from updater import releases
 from updater.releases import _api
 
@@ -127,6 +128,7 @@ class RetrievalTests(unittest.TestCase):
             with (
                 self.subTest(download_url=download_url, actions=actions),
                 patch.dict(os.environ, {"GITHUB_ACTIONS": actions}),
+                patch.object(logger, "handlers", []),
                 patch("sys.stdout", new_callable=io.StringIO) as annotations,
                 patch.object(
                     _api,
@@ -139,20 +141,20 @@ class RetrievalTests(unittest.TestCase):
                 ),
                 patch("sys.stderr", new_callable=io.StringIO) as warnings,
             ):
+                configure_logging()
                 result = releases.Retriever().retrieve(
                     url, homepage="https://www.curseforge.com/wow/addons/addon"
                 )
                 self.assertEqual(result, releases.Release(url=url))
-                self.assertIn("Warning:", warnings.getvalue())
-                self.assertIn("addon", warnings.getvalue())
-                self.assertIn("1002", warnings.getvalue())
-                self.assertIn("keeping pinned", warnings.getvalue())
+                message = annotations.getvalue() if actions == "true" else warnings.getvalue()
+                self.assertIn("addon", message)
+                self.assertIn("1002", message)
+                self.assertIn("keeping pinned", message)
                 if actions == "true":
-                    self.assertEqual(
-                        annotations.getvalue(),
-                        "::warning::" + warnings.getvalue().removeprefix("Warning: "),
-                    )
+                    self.assertTrue(message.startswith("::warning::"))
+                    self.assertEqual(warnings.getvalue(), "")
                 else:
+                    self.assertTrue(message.startswith("Warning:"))
                     self.assertEqual(annotations.getvalue(), "")
 
     def test_unsupported_sources_and_missing_homepage_fail_before_requests(self):

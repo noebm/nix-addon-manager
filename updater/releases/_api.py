@@ -8,6 +8,8 @@ from typing import cast
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
+from ..log import logger
+
 type JSON = None | bool | int | float | str | list[JSON] | dict[str, JSON]
 
 
@@ -37,10 +39,7 @@ def parsed_entries[T](
         try:
             entry = parse(value)
         except (TypeError, ValueError) as error:
-            print(
-                f"Warning: ignoring release metadata entry {index}: {error}",
-                file=sys.stderr,
-            )
+            logger.warning("ignoring release metadata entry %s: %s", index, error)
             continue
         yield entry
 

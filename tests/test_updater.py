@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
+from updater.log import configure_logging, logger
 from updater import main as updater
 from updater.releases import _api, curseforge, github
 
@@ -605,6 +606,7 @@ class ProposalTests(unittest.TestCase):
                 with (
                     self.subTest(ci=ci, version=version),
                     patch.dict(updater.os.environ, {"GITHUB_ACTIONS": ci}),
+                    patch.object(logger, "handlers", []),
                     patch.object(
                         updater.releases.Retriever,
                         "retrieve",
@@ -617,6 +619,7 @@ class ProposalTests(unittest.TestCase):
                     ),
                     patch("sys.stdout", new_callable=io.StringIO) as output,
                 ):
+                    configure_logging()
                     updater.propose("test/component", text, updater.releases.Retriever())
 
                 notices = [

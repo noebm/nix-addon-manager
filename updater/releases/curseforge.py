@@ -1,12 +1,11 @@
 """CurseForge project discovery and compatible release selection."""
 
-import os
 import re
-import sys
 from collections.abc import Iterable
 from typing import NotRequired, TypedDict
 from urllib.parse import quote, urlencode
 
+from ..log import logger
 from . import _api
 from ._api import JSON, field, json_dict, json_list
 
@@ -179,12 +178,7 @@ def retrieve(url: str, homepage: str | None) -> str:
             f"skipping {slug} file {latest['id']}: CurseForge returned no "
             "download URL; keeping pinned release"
         )
-        print(f"Warning: {message}", file=sys.stderr)
-        if os.environ.get("GITHUB_ACTIONS") == "true":
-            escaped = (
-                message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-            )
-            print(f"::warning::{escaped}", flush=True)
+        logger.warning("%s", message)
 
         return url
 

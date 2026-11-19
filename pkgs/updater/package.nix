@@ -24,7 +24,7 @@ stdenvNoCC.mkDerivation {
 
     export GIT_CONFIG_GLOBAL=/dev/null
     export GIT_CONFIG_NOSYSTEM=1
-    PYTHONPATH="$PWD:$PWD/tests" python -m unittest test_updater test_releases test_commit_message
+    PYTHONPATH="$PWD:$PWD/tests" python -m unittest test_updater test_updater_logging test_releases test_commit_message
 
     runHook postCheck
   '';
