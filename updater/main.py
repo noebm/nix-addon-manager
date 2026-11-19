@@ -369,6 +369,11 @@ def propose(
     proposal = VERSION.sub(
         lambda match: f"  version = {nix_string(package_version)};", text
     )
+    if package_version != versions[0] and os.environ.get("GITHUB_ACTIONS") == "true":
+        message = f"{name}: {versions[0]} -> {package_version}"
+        escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print(f"::notice::{escaped}", flush=True)
+
     return proposal, pending_validation
 
 

@@ -593,6 +593,42 @@ class UpdateTests(unittest.TestCase):
 
 
 class ProposalTests(unittest.TestCase):
+    def test_version_changes_emit_ci_notices(self):
+        text = (
+            '  version = "1%old";\n'
+            '  url = "https://example.org/old.zip";\n'
+            '  hash = "sha256-old";\n'
+            '  addonDirectories = [ "Test" ];\n'
+        )
+        for ci in ("true", "false"):
+            for version in ("2", "1%old"):
+                with (
+                    self.subTest(ci=ci, version=version),
+                    patch.dict(updater.os.environ, {"GITHUB_ACTIONS": ci}),
+                    patch.object(
+                        updater.releases.Retriever,
+                        "retrieve",
+                        return_value=updater.releases.Release(
+                            "https://example.org/new.zip", version
+                        ),
+                    ),
+                    patch.object(
+                        updater, "download", return_value=("sha256-new", {"Test"}, None)
+                    ),
+                    patch("sys.stdout", new_callable=io.StringIO) as output,
+                ):
+                    updater.propose("test/component", text, updater.releases.Retriever())
+
+                notices = [
+                    line for line in output.getvalue().splitlines()
+                    if line.startswith("::notice::")
+                ]
+                self.assertEqual(
+                    notices,
+                    ["::notice::test/component: 1%25old -> 2"]
+                    if ci == "true" and version == "2" else [],
+                )
+
     def test_audio_update_downloads_only_that_component(self):
         root = Path(__file__).resolve().parents[1]
         path = root / "addons/spoken-english/components/quests-audio/package.nix"
