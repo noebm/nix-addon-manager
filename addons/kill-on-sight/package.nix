@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "kill-on-sight";
-  version = "3.5.8";
+  version = "3.5.9";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9679/287/KillOnSight-forever-3.5.8.zip";
-      hash = "sha256-4URQ6//siLeQGoZPkOqvRoD0B4T9bbGdETktqwhc6S4=";
+      url = "https://edge.forgecdn.net/files/9694/639/KillOnSight-forever-3.5.9.zip";
+      hash = "sha256-5iCSsSkek0TvMA/Lmj1K/PPEQ/p1cf26+1hCpRUUjGg=";
     })
   ];
 
