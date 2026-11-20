@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "maputils";
-  version = "1.7.16";
+  version = "1.7.22";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9708/403/MapUtils-v1.7.16-forever.zip";
-      hash = "sha256-Nf1X33rTQpv+TKkGL8ZIPAVrHN2kARQgaW/3cnF5gAo=";
+      url = "https://edge.forgecdn.net/files/9721/259/MapUtils-v1.7.22-forever.zip";
+      hash = "sha256-cDDFMqns1+eFZxkFGpEm38fpqI4DtZEN7Hd6nJPkXXw=";
     })
   ];
 
