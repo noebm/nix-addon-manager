@@ -487,6 +487,74 @@ class InstallationTests(unittest.TestCase):
         self.assertTrue((self.target / "Other").is_dir())
         self.assertEqual((self.game / "WTF/settings").read_text(), "keep")
 
+    def test_update_output_omits_unchanged_addons(self):
+        self.run_install()
+        config = self.root / "addons.nix"
+        config.touch()
+        output = StringIO()
+        manifest = schemas.Manifest.from_dict(self.manifest)
+
+        with patch(
+            "sys.argv",
+            ["installer", "update", str(config), "--game-path", str(self.game)],
+        ), patch.object(installer, "nix_manifest", return_value=manifest), patch(
+            "sys.stdout", output
+        ):
+            installer.main()
+
+        self.assertEqual(output.getvalue(), "Preview only; pass --apply to install\n")
+
+    def test_update_output_shows_versions(self):
+        self.run_install()
+        config = self.root / "addons.nix"
+        config.touch()
+        cases = [
+            ("2", "update: Test 1 -> 2"),
+            ("1", "update: Test 1 -> 1"),
+            (None, "remove: Test 1"),
+        ]
+        for version, expected in cases:
+            with self.subTest(version=version):
+                packages = [] if version is None else [
+                    schemas.ManifestPackage(
+                        name="test", version=version,
+                        path=str(self.root / "new-package"), directories=["Test"],
+                    )
+                ]
+                output = StringIO()
+
+                with patch(
+                    "sys.argv",
+                    ["installer", "update", str(config), "--game-path", str(self.game)],
+                ), patch.object(
+                    installer, "nix_manifest", return_value=schemas.Manifest(packages)
+                ), patch("sys.stdout", output):
+                    installer.main()
+
+                self.assertEqual(
+                    output.getvalue(),
+                    expected + "\nPreview only; pass --apply to install\n",
+                )
+
+    def test_install_output_shows_version(self):
+        config = self.root / "addons.nix"
+        config.touch()
+        output = StringIO()
+
+        with patch(
+            "sys.argv",
+            ["installer", "update", str(config), "--game-path", str(self.game)],
+        ), patch.object(
+            installer, "nix_manifest",
+            return_value=schemas.Manifest.from_dict(self.manifest),
+        ), patch("sys.stdout", output):
+            installer.main()
+
+        self.assertEqual(
+            output.getvalue(),
+            "install: Test 1\nPreview only; pass --apply to install\n",
+        )
+
     def test_unmanaged_and_duplicate_ownership_conflict(self):
         (self.target / "Test").mkdir()
         with self.assertRaises(ValueError):

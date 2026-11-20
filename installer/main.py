@@ -182,6 +182,26 @@ class Operation(Enum):
     KEEP = "keep"
 
 
+def display_plan(
+    plan: dict[str, Operation],
+    previous: dict[str, OwnedDirectory],
+    selected: dict[str, OwnedDirectory],
+) -> None:
+    """Print planned changes with their installed and selected versions."""
+    for name, operation in plan.items():
+        if operation is Operation.KEEP:
+            continue
+
+        if operation is Operation.UPDATE:
+            version = f"{previous[name].version} -> {selected[name].version}"
+        elif operation is Operation.REMOVE:
+            version = previous[name].version
+        else:
+            version = selected[name].version
+
+        print(f"{operation.value}: {name} {version}", flush=True)
+
+
 @requires_active_lock
 @dataclass(eq=False)
 class LockedInstallation:
@@ -648,8 +668,9 @@ def main():
             configuration = args.config.resolve(strict=True)
             manifest = nix_manifest(repository, configuration)
             plan = locked.reconcile(manifest)
-            for name, operation in plan.items():
-                print(f"{operation.value}: {name}", flush=True)
+            display_plan(
+                plan, locked.state().directories, selected_directories(manifest)
+            )
 
             if args.apply:
                 generations = locked.generations()
