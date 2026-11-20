@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from installer import main as installer
 from installer import schemas
-from installer.delta import Operation, generate_plan
+from installer.delta import generate_plan
 
 
 class PlanTests(unittest.TestCase):
@@ -31,13 +31,13 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(
             generate_plan(previous, selected, {"Keep", "Update", "Rebuild", "Remove"}),
             {
-                "Keep": Operation.KEEP,
-                "Update": Operation.UPDATE,
-                "Rebuild": Operation.UPDATE,
-                "Remove": Operation.REMOVE,
-                "Install": Operation.INSTALL,
-                "Missing": Operation.INSTALL,
-                "Broken": Operation.INSTALL,
+                "Keep": (old, old),
+                "Update": (old, new),
+                "Rebuild": (old, rebuilt),
+                "Remove": (old, None),
+                "Install": (None, new),
+                "Missing": (None, old),
+                "Broken": (None, old),
             },
         )
 
@@ -268,6 +268,7 @@ class InstallationTests(unittest.TestCase):
         self.source = self.root / "package/share/wow-addons/Test"
         self.source.mkdir(parents=True)
         (self.source / "Test.toc").write_text("version one")
+        self.owner = schemas.OwnedDirectory("test", "1", str(self.root / "package"))
         self.manifest = {
             "schema": 1,
             "packages": [
@@ -356,7 +357,7 @@ class InstallationTests(unittest.TestCase):
                 patch("sys.stderr", new_callable=StringIO) as warnings,
             ):
                 self.assertEqual(
-                    self.run_install(apply), {"Test": Operation.INSTALL}
+                    self.run_install(apply), {"Test": (None, self.owner)}
                 )
                 self.assertIn("warning: test: out of date", warnings.getvalue())
                 self.assertIn("10900", warnings.getvalue())
@@ -506,15 +507,15 @@ class InstallationTests(unittest.TestCase):
         (self.target / "Other").mkdir()
         (self.game / "WTF").mkdir()
         (self.game / "WTF/settings").write_text("keep")
-        self.assertEqual(self.run_install(False), {"Test": Operation.INSTALL})
+        self.assertEqual(self.run_install(False), {"Test": (None, self.owner)})
         self.assertFalse((self.target / "Test").exists())
         self.run_install()
         self.assertTrue((self.target / "Test").is_symlink())
         self.assertEqual((self.target / "Test").readlink(), self.source)
         self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")
-        self.assertEqual(self.run_install(False), {"Test": Operation.KEEP})
+        self.assertEqual(self.run_install(False), {"Test": (self.owner, self.owner)})
         self.manifest["packages"] = []
-        self.assertEqual(self.run_install(), {"Test": Operation.REMOVE})
+        self.assertEqual(self.run_install(), {"Test": (self.owner, None)})
         self.assertTrue((self.target / "Other").is_dir())
         self.assertEqual((self.game / "WTF/settings").read_text(), "keep")
 
@@ -648,7 +649,10 @@ class InstallationTests(unittest.TestCase):
             locked.recover()
 
         self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")
-        self.assertEqual(self.run_install(False), {"Test": Operation.UPDATE})
+        self.assertEqual(
+            self.run_install(False),
+            {"Test": (self.owner, schemas.OwnedDirectory("test", "2", self.owner.path))},
+        )
 
     def test_concurrent_operation_is_rejected(self):
         with installer.Installation(self.game).lock():
@@ -664,7 +668,7 @@ class InstallationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "lock context"):
             locked.state()
 
-        self.assertEqual(self.run_install(False), {"Test": Operation.INSTALL})
+        self.assertEqual(self.run_install(False), {"Test": (None, self.owner)})
 
     def test_operations_are_only_available_on_locked_installation(self):
         install = installer.Installation(self.game)
@@ -676,7 +680,7 @@ class InstallationTests(unittest.TestCase):
             locked.recover()
             self.assertEqual(
                 locked.reconcile(schemas.Manifest.from_dict(self.manifest)),
-                {"Test": Operation.INSTALL},
+                {"Test": (None, self.owner)},
             )
 
     def test_expired_locked_installation_stays_invalid_after_reacquiring(self):
@@ -697,7 +701,7 @@ class InstallationTests(unittest.TestCase):
 
             self.assertEqual(
                 current.reconcile(schemas.Manifest.from_dict(self.manifest)),
-                {"Test": Operation.INSTALL},
+                {"Test": (None, self.owner)},
             )
             self.assertFalse((self.target / "Test").exists())
 
@@ -744,7 +748,7 @@ class InstallationTests(unittest.TestCase):
         with install.lock() as locked:
             locked.recover()
 
-        self.assertEqual(self.run_install(False), {"Test": Operation.KEEP})
+        self.assertEqual(self.run_install(False), {"Test": (self.owner, self.owner)})
         self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")
 
     def test_update_retains_previous_content(self):
@@ -798,7 +802,7 @@ class InstallationTests(unittest.TestCase):
     def test_missing_store_target_can_be_repaired_and_deselected(self):
         self.run_install()
         shutil.rmtree(self.source)
-        self.assertEqual(self.run_install(False), {"Test": Operation.INSTALL})
+        self.assertEqual(self.run_install(False), {"Test": (None, self.owner)})
         self.manifest["packages"] = []
         self.run_install()
         self.assertFalse((self.target / "Test").is_symlink())

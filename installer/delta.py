@@ -1,17 +1,20 @@
 """Describe and display changes to managed addon directories."""
 
-from enum import Enum
-
 from .schemas import OwnedDirectory
 
+# Equal endpoints keep a directory; differing endpoints update it.
+# An absent endpoint means installation or removal. Both cannot be absent.
+type Operation = (
+    tuple[OwnedDirectory, OwnedDirectory]
+    | tuple[OwnedDirectory, None]
+    | tuple[None, OwnedDirectory]
+)
 
-class Operation(Enum):
-    """Action planned for a managed addon directory."""
 
-    INSTALL = "install"
-    UPDATE = "update"
-    REMOVE = "remove"
-    KEEP = "keep"
+def is_unchanged(operation: Operation) -> bool:
+    """Whether the installed and selected package records are equal."""
+    previous, selected = operation
+    return previous == selected
 
 
 def generate_plan(
@@ -23,35 +26,30 @@ def generate_plan(
 
     Missing directories and links with missing targets must be absent from available.
     """
-    plan = {}
+    plan: dict[str, Operation] = {}
     for name in sorted(previous.keys() | selected.keys()):
         if name not in selected:
-            plan[name] = Operation.REMOVE
+            plan[name] = (previous[name], None)
         elif name not in previous or name not in available:
-            plan[name] = Operation.INSTALL
+            plan[name] = (None, selected[name])
         else:
-            plan[name] = (
-                Operation.KEEP if previous[name] == selected[name] else Operation.UPDATE
-            )
+            plan[name] = (previous[name], selected[name])
 
     return plan
 
 
-def display_plan(
-    plan: dict[str, Operation],
-    previous: dict[str, OwnedDirectory],
-    selected: dict[str, OwnedDirectory],
-) -> None:
+def display_plan(plan: dict[str, Operation]) -> None:
     """Print planned changes with their installed and selected versions."""
     for name, operation in plan.items():
-        if operation is Operation.KEEP:
-            continue
+        match operation:
+            case _ if is_unchanged(operation):
+                continue
+            case (None, OwnedDirectory(version=version)):
+                action = "install"
+            case (OwnedDirectory(version=version), None):
+                action = "remove"
+            case (OwnedDirectory(version=previous), OwnedDirectory(version=selected)):
+                action = "update"
+                version = f"{previous} -> {selected}"
 
-        if operation is Operation.UPDATE:
-            version = f"{previous[name].version} -> {selected[name].version}"
-        elif operation is Operation.REMOVE:
-            version = previous[name].version
-        else:
-            version = selected[name].version
-
-        print(f"{operation.value}: {name} {version}", flush=True)
+        print(f"{action}: {name} {version}", flush=True)

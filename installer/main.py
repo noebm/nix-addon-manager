@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import TextIO
 
 from .client import validate_compatibility
-from .delta import Operation, display_plan, generate_plan
+from .delta import Operation, display_plan, generate_plan, is_unchanged
 from .generations import Generations
 from .installations import (
     InstallationRegistry,
@@ -291,7 +291,7 @@ class LockedInstallation:
         if not apply:
             return plan
 
-        if all(action is Operation.KEEP for action in plan.values()):
+        if all(is_unchanged(operation) for operation in plan.values()):
             if manifest_root is not None:
                 write_json(
                     installation.state_path,
@@ -314,8 +314,8 @@ class LockedInstallation:
                 existed=(installation.target / name).exists()
                 or (installation.target / name).is_symlink(),
             )
-            for name, action in plan.items()
-            if action is not Operation.KEEP
+            for name, operation in plan.items()
+            if not is_unchanged(operation)
         }
         try:
             for name in changes:
@@ -638,9 +638,7 @@ def main():
             configuration = args.config.resolve(strict=True)
             manifest = nix_manifest(repository, configuration)
             plan = locked.reconcile(manifest)
-            display_plan(
-                plan, locked.state().directories, selected_directories(manifest)
-            )
+            display_plan(plan)
 
             if args.apply:
                 generations = locked.generations()
