@@ -12,7 +12,37 @@ from unittest.mock import patch
 
 from installer import main as installer
 from installer import schemas
-from installer.delta import Operation
+from installer.delta import Operation, generate_plan
+
+
+class PlanTests(unittest.TestCase):
+    def test_plan_compares_packages_and_available_directories(self):
+        old = schemas.OwnedDirectory("test", "1", "/old")
+        new = schemas.OwnedDirectory("test", "2", "/new")
+        rebuilt = schemas.OwnedDirectory("test", "1", "/rebuilt")
+        previous = dict.fromkeys(
+            ["Keep", "Update", "Rebuild", "Remove", "Missing", "Broken"], old
+        )
+        selected = {
+            "Keep": old, "Update": new, "Rebuild": rebuilt,
+            "Install": new, "Missing": old, "Broken": old,
+        }
+
+        self.assertEqual(
+            generate_plan(previous, selected, {"Keep", "Update", "Rebuild", "Remove"}),
+            {
+                "Keep": Operation.KEEP,
+                "Update": Operation.UPDATE,
+                "Rebuild": Operation.UPDATE,
+                "Remove": Operation.REMOVE,
+                "Install": Operation.INSTALL,
+                "Missing": Operation.INSTALL,
+                "Broken": Operation.INSTALL,
+            },
+        )
+
+    def test_empty_plan(self):
+        self.assertEqual(generate_plan({}, {}, set()), {})
 
 
 class SchemaTests(unittest.TestCase):

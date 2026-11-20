@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import TextIO
 
 from .client import validate_compatibility
-from .delta import Operation, display_plan
+from .delta import Operation, display_plan, generate_plan
 from .generations import Generations
 from .installations import (
     InstallationRegistry,
@@ -63,6 +63,28 @@ def selected_directories(manifest: Manifest) -> dict[str, OwnedDirectory]:
             selected[name] = owner
 
     return selected
+
+
+def validate_managed_links(
+    target: Path,
+    previous: dict[str, OwnedDirectory],
+    selected: dict[str, OwnedDirectory],
+) -> None:
+    """Reject unmanaged conflicts and changes to recorded addon links."""
+    existing = {path.name.casefold(): path.name for path in target.iterdir()}
+    for name in sorted(previous.keys() | selected.keys()):
+        destination = target / name
+        actual = existing.get(name.casefold())
+        if actual is not None and (name not in previous or actual != name):
+            raise ValueError(
+                f"Unmanaged directory conflict: {actual}; move it aside explicitly"
+            )
+        if destination.is_symlink():
+            expected = Path(previous[name].path) / "share/wow-addons" / name
+            if destination.readlink() != expected:
+                raise ValueError(f"Unexpected managed link target: {destination}")
+        elif destination.exists():
+            raise ValueError(f"Expected a managed symlink: {destination}")
 
 
 def validate_tree(root):
@@ -260,34 +282,11 @@ class LockedInstallation:
         selected = selected_directories(manifest)
         state = self.state()
         previous = state.directories
-        existing = {
-            path.name.casefold(): path.name for path in installation.target.iterdir()
-        }
-        plan = {}
-        for name in sorted(previous.keys() | selected.keys()):
-            destination = installation.target / name
-            actual = existing.get(name.casefold())
-            if actual is not None and (name not in previous or actual != name):
-                raise ValueError(
-                    f"Unmanaged directory conflict: {actual}; move it aside explicitly"
-                )
-            if destination.is_symlink():
-                expected = Path(previous[name].path) / "share/wow-addons" / name
-                if destination.readlink() != expected:
-                    raise ValueError(f"Unexpected managed link target: {destination}")
-            elif destination.exists():
-                raise ValueError(f"Expected a managed symlink: {destination}")
 
-            if name not in selected:
-                plan[name] = Operation.REMOVE
-            elif name not in previous or not destination.exists():
-                plan[name] = Operation.INSTALL
-            else:
-                plan[name] = (
-                    Operation.KEEP
-                    if previous[name] == selected[name]
-                    else Operation.UPDATE
-                )
+        validate_managed_links(installation.target, previous, selected)
+
+        available = {name for name in previous if (installation.target / name).exists()}
+        plan = generate_plan(previous, selected, available)
 
         if not apply:
             return plan
