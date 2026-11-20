@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "gearquest-forever";
-  version = "1.2.9";
+  version = "1.3.1";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9718/755/GearQuestForever-v1.2.9.zip";
-      hash = "sha256-xYZNIsEok6dFo0Kb0YNNRKTKVP+L3JhKN3L/uvl7YOw=";
+      url = "https://edge.forgecdn.net/files/9721/879/GearQuestForever-v1.3.1.zip";
+      hash = "sha256-gkE0CsQpQZoJpS1mn3zBxM9uExKAAZe8BLZXQK8NH8I=";
     })
   ];
 
