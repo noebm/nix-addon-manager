@@ -7,12 +7,12 @@
 
 mkAddon {
   pname = "atlasloot-classic-forever";
-  version = "1.4.5";
+  version = "1.4.6";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9708/332/AtlasLoot-Classic-Forever-1.4.5-201126-16001.zip";
-      hash = "sha256-yTV+d5t4Xp4luuXZJcLqhugOJMjVOcK/S2V2qU7RFLM=";
+      url = "https://edge.forgecdn.net/files/9726/490/AtlasLoot-Classic-Forever-1.4.6-211126-16001.zip";
+      hash = "sha256-zK/GRFh54Xe4yth9sZcOPy+PosudL/tWqEo9E+n4plg=";
     })
   ];
 
