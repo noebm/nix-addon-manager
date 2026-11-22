@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "angleur";
-  version = "Angleur Forever 2.9.81-EqManAndLuaErrorHotfixes";
+  version = "Angleur Forever Angleur-2.9.82-ToggleEquipmentColdFix";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9554/931/Angleur-2.9.81-EqManAndLuaErrorHotfixes.zip";
-      hash = "sha256-6mW7FvvUZcc/YHANhvK6kj+bXWhqTBaviL2EvO8mHrE=";
+      url = "https://edge.forgecdn.net/files/9753/318/Angleur-Angleur-2.9.82-ToggleEquipmentColdFix.zip";
+      hash = "sha256-WXCyQX1LLwN9SY99+dJ78Zqd2cczaSbKyv3LxS9x6lg=";
     })
   ];
 
