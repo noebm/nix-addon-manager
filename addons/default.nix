@@ -13,6 +13,7 @@ let
     forever-leveling-bis = self.callPackage ./forever-leveling-bis/package.nix { };
     gearquest-forever = self.callPackage ./gearquest-forever/package.nix { };
     kill-on-sight = self.callPackage ./kill-on-sight/package.nix { };
+    lfg-forever = self.callPackage ./lfg-forever/package.nix { };
     maputils = self.callPackage ./maputils/package.nix { };
     spoken-english = self.callPackage ./spoken-english/package.nix { };
   });
@@ -27,6 +28,7 @@ in
     forever-leveling-bis
     gearquest-forever
     kill-on-sight
+    lfg-forever
     maputils
     spoken-english
     ;

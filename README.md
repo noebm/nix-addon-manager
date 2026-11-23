@@ -109,6 +109,7 @@ installation, or use the default.
 | Forever Leveling BiS | `forever-leveling-bis` | Best-in-slot leveling gear from quests, dungeons and crafting; WoW Forever 1.60.1 (interface 16001); unfree |
 | GearQuest Forever | `gearquest-forever` | Leveling gear upgrades and hunt tracking; WoW Forever 1.60.1 (interface 16001); unfree |
 | Kill on Sight | `kill-on-sight` | Hostile player and guild tracking with nearby alerts; WoW Forever 1.60.1 (interface 16001) |
+| LFG Forever | `lfg-forever` | Dungeon group finder with role, class and level filters; WoW Forever 1.60.1 (interface 16001) |
 | MapUtils | `maputils` | Dungeon maps, travel routes, and world map improvements; WoW Forever 1.60.1 (interface 16001) |
 
 ## Package structure
