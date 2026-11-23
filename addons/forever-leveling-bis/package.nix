@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "forever-leveling-bis";
-  version = "1.4.5";
+  version = "1.4.7";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9744/210/ForeverLevelingBiS-v1.4.5-forever.zip";
-      hash = "sha256-j289BPW50vYLGVnwAeK89LUIC9PTifqnmKkaGX9/UNM=";
+      url = "https://edge.forgecdn.net/files/9768/255/ForeverLevelingBiS-v1.4.7-forever.zip";
+      hash = "sha256-tPSMxRwAqM8WoH7PPMJ8HYlxzLu9/+bMk85xTacDZ5E=";
     })
   ];
 

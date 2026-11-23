@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "spoken";
-  version = "3.12.0";
+  version = "3.12.1";
 
   srcs = [
     (fetchurl {
-      url = "https://github.com/rusty-key/spoken-wow/releases/download/spoken/v3.12.0/Spoken-3.12.0.zip";
-      hash = "sha256-djEjJdDjzgliVSlaPT00rfcYOztfsGjlgA81iABo8Ao=";
+      url = "https://github.com/rusty-key/spoken-wow/releases/download/spoken/v3.12.1/Spoken-3.12.1.zip";
+      hash = "sha256-9PIbL2S7fI5/L5LQGs31zlTYy3aOffrvyKQiY3c1KEI=";
     })
   ];
 
