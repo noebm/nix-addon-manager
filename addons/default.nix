@@ -11,6 +11,7 @@ let
     dungeonjournal = self.callPackage ./dungeonjournal/package.nix { };
     faster-loot = self.callPackage ./faster-loot/package.nix { };
     forever-leveling-bis = self.callPackage ./forever-leveling-bis/package.nix { };
+    forever-trinket-menu = self.callPackage ./forever-trinket-menu/package.nix { };
     gearquest-forever = self.callPackage ./gearquest-forever/package.nix { };
     kill-on-sight = self.callPackage ./kill-on-sight/package.nix { };
     lfg-forever = self.callPackage ./lfg-forever/package.nix { };
@@ -26,6 +27,7 @@ in
     dungeonjournal
     faster-loot
     forever-leveling-bis
+    forever-trinket-menu
     gearquest-forever
     kill-on-sight
     lfg-forever
