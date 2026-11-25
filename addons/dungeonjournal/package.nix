@@ -22,6 +22,7 @@ mkAddon {
   };
 
   meta = {
+    displayName = "DungeonJournal";
     description = "Dungeon boss loot and quest journal for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/dungeonjournal";
     license = lib.licenses.unfree;

@@ -22,6 +22,7 @@ mkAddon {
   };
 
   meta = {
+    displayName = "Faster Loot";
     description = "Instant looting of mobs and containers for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/faster-loot";
     license = lib.licenses.unfree;

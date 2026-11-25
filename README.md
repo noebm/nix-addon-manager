@@ -98,6 +98,15 @@ installation, or use the default.
 
 ## Supported addons
 
+List all addons with their exported name (for use as `addons.<name>` in
+`addons.nix`), display name, pinned version, description, and homepage:
+
+```sh
+nix eval --json github:noebm/nix-addon-manager#addonList
+```
+
+In a local checkout, use `nix eval --json .#addonList`.
+
 | Addon | Package | Notes |
 | --- | --- | --- |
 | Angleur | `angleur` | One-button fishing and automatic fishing gear; WoW Forever 1.60.1 (interface 16001); unfree |

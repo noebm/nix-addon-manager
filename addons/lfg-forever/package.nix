@@ -22,6 +22,7 @@ mkAddon {
   };
 
   meta = {
+    displayName = "LFG Forever";
     description = "Dungeon group finder with role, class and level filters for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/lfg-forever";
     license = lib.licenses.gpl3Only;

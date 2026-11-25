@@ -48,6 +48,7 @@ mkAddon {
   '';
 
   meta = {
+    displayName = "AtlasLoot Classic Forever";
     description = "AtlasLoot loot tables and best-in-slot lists for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/atlasloot-forever";
     license = lib.licenses.gpl2Only;

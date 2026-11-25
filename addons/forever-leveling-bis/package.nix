@@ -22,6 +22,7 @@ mkAddon {
   };
 
   meta = {
+    displayName = "Forever Leveling BiS";
     description = "Best-in-slot leveling gear from quests, dungeons and crafting for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/forever-leveling-bis";
     license = lib.licenses.unfree;

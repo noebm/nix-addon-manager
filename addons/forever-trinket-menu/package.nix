@@ -22,6 +22,7 @@ mkAddon {
   };
 
   meta = {
+    displayName = "Forever Trinket Menu";
     description = "Quick trinket swapping, combat queue and auto-rotation for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/forever-trinket-menu";
     license = lib.licenses.mit;

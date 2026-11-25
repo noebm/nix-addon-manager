@@ -22,6 +22,7 @@ mkAddon {
   };
 
   meta = {
+    displayName = "Books on Map Forever";
     description = "Library book locations and collection tracking for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/books-on-map-forever";
     license = lib.licenses.unfree;

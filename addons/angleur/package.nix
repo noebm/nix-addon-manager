@@ -22,6 +22,7 @@ mkAddon {
   };
 
   meta = {
+    displayName = "Angleur";
     description = "One-button fishing and automatic fishing gear for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/angleur";
     license = lib.licenses.unfree;

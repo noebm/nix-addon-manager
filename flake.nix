@@ -16,6 +16,7 @@
         config.allowUnfree = true;
       };
       packages = import ./pkgs { inherit pkgs; };
+      addons = import ./addons { inherit pkgs; };
       pre-commit-check = git-hooks.lib.${system}.run {
         src = ./.;
         excludes = [ "^tests/" ];
@@ -24,9 +25,17 @@
       };
     in
     {
-      packages.${system} = packages // (import ./addons { inherit pkgs; }) // {
-        default = packages.installer;
-      };
+      addonList = pkgs.lib.mapAttrsToList (name: addon: {
+        inherit name;
+        inherit (addon) version;
+        inherit (addon.meta) displayName description homepage;
+      }) addons;
+      packages.${system} =
+        packages
+        // addons
+        // {
+          default = packages.installer;
+        };
       formatter.${system} = pkgs.nixfmt-tree;
       checks.${system} = {
         inherit pre-commit-check;

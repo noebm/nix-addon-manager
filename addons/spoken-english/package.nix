@@ -19,6 +19,7 @@ mkAddonBundle {
   paths = builtins.attrValues components;
 
   meta = {
+    displayName = "Spoken";
     description = "Spoken WoW addon with all English voice packs";
     homepage = "https://github.com/rusty-key/spoken-wow";
     license = lib.licenses.unfree;

@@ -22,6 +22,7 @@ mkAddon {
   };
 
   meta = {
+    displayName = "Kill on Sight";
     description = "Hostile player and guild tracking with nearby alerts for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/kill-on-sight";
     license = lib.licenses.mit;

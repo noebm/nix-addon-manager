@@ -22,6 +22,7 @@ mkAddon {
   };
 
   meta = {
+    displayName = "MapUtils";
     description = "Dungeon maps, travel routes, and world map improvements for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/maputils";
     license = lib.licenses.gpl3Only;

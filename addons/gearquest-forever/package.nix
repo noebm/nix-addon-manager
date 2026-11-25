@@ -35,6 +35,7 @@ mkAddon {
   };
 
   meta = {
+    displayName = "GearQuest Forever";
     description = "Leveling gear upgrades and hunt tracking for WoW Forever";
     homepage = "https://www.curseforge.com/wow/addons/gearquest-forever";
     license = lib.licenses.unfree;
