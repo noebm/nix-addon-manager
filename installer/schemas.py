@@ -73,21 +73,25 @@ class Manifest:
     """Schema-versioned selection evaluated from trusted Nix configuration."""
 
     packages: list[ManifestPackage]
-    schema: int = 1
+    gamePath: str
+    schema: int = 2
 
     def __post_init__(self):
-        if self.schema != 1:
+        if self.schema != 2:
             raise ValueError("Unsupported manifest schema")
+        if not isinstance(self.gamePath, str) or not self.gamePath:
+            raise ValueError("gamePath must be a nonempty string")
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> Self:
-        if value.get("schema") != 1:
+        if value.get("schema") != 2:
             raise ValueError("Unsupported manifest schema")
 
         return cls(
+            gamePath=value["gamePath"],
             packages=[
                 ManifestPackage.from_dict(package) for package in value["packages"]
-            ]
+            ],
         )
 
 

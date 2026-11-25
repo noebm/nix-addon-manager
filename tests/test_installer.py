@@ -46,9 +46,18 @@ class PlanTests(unittest.TestCase):
 
 
 class SchemaTests(unittest.TestCase):
+    def test_manifest_requires_nonempty_game_path(self):
+        for value in (None, "", 123):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                schemas.Manifest.from_dict({"schema": 2, "packages": [], "gamePath": value})
+
+        with self.assertRaises(KeyError):
+            schemas.Manifest.from_dict({"schema": 2, "packages": []})
+
     def test_manifest_decodes_nested_metadata(self):
         data = {
-            "schema": 1,
+            "schema": 2,
+            "gamePath": "/games/WoW",
             "packages": [
                 {
                     "name": "test",
@@ -96,7 +105,7 @@ class SchemaTests(unittest.TestCase):
         self.assertEqual(asdict(schemas.TransactionJournal.from_dict(journal)), journal)
 
     def test_nix_eval_and_build_return_typed_manifests(self):
-        data = {"schema": 1, "packages": []}
+        data = {"schema": 2, "packages": [], "gamePath": "/games/WoW"}
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             output = root / "manifest.json"
@@ -118,7 +127,7 @@ class SchemaTests(unittest.TestCase):
                     root, root / "config.nix", out_link=root / "gc-root"
                 )
 
-        self.assertEqual(evaluated, schemas.Manifest(packages=[]))
+        self.assertEqual(evaluated, schemas.Manifest(packages=[], gamePath="/games/WoW"))
         self.assertEqual(built, evaluated)
 
     def test_rejects_unsafe_journal_metadata(self):
@@ -132,10 +141,10 @@ class SchemaTests(unittest.TestCase):
                     schemas.TransactionJournal.from_dict(data)
 
     def test_unsupported_schemas_are_rejected(self):
-        for schema in (schemas.Manifest, schemas.InstallationState):
+        for schema, version in ((schemas.Manifest, 1), (schemas.InstallationState, 2)):
             with self.subTest(schema=schema.__name__):
                 with self.assertRaisesRegex(ValueError, "schema"):
-                    schema.from_dict({"schema": 2})
+                    schema.from_dict({"schema": version})
 
 
 class ExportTests(unittest.TestCase):
@@ -149,7 +158,8 @@ class ExportTests(unittest.TestCase):
         (self.source / "empty").mkdir()
         self.manifest = schemas.Manifest.from_dict(
             {
-                "schema": 1,
+                "schema": 2,
+                "gamePath": "/games/WoW",
                 "packages": [
                     {
                         "name": "test",
@@ -225,7 +235,7 @@ class ExportTests(unittest.TestCase):
                 build.assert_not_called()
 
     def test_export_rejects_conflicts_and_unsafe_content(self):
-        duplicate = schemas.Manifest(packages=self.manifest.packages * 2)
+        duplicate = schemas.Manifest(packages=self.manifest.packages * 2, gamePath=self.manifest.gamePath)
         with self.assertRaisesRegex(ValueError, "ownership"):
             installer.export_zip(duplicate, self.output)
 
@@ -270,7 +280,8 @@ class InstallationTests(unittest.TestCase):
         (self.source / "Test.toc").write_text("version one")
         self.owner = schemas.OwnedDirectory("test", "1", str(self.root / "package"))
         self.manifest = {
-            "schema": 1,
+            "schema": 2,
+            "gamePath": str(self.game),
             "packages": [
                 {
                     "name": "test",
@@ -528,13 +539,29 @@ class InstallationTests(unittest.TestCase):
 
         with patch(
             "sys.argv",
-            ["installer", "update", str(config), "--game-path", str(self.game)],
+            ["installer", "update", str(config)],
         ), patch.object(installer, "nix_manifest", return_value=manifest), patch(
             "sys.stdout", output
         ):
             installer.main()
 
         self.assertEqual(output.getvalue(), "Preview only; pass --apply to install\n")
+
+    def test_update_uses_configured_game_path(self):
+        config = self.root / "addons.nix"
+        config.touch()
+        manifest = schemas.Manifest.from_dict(self.manifest)
+
+        with patch("sys.argv", ["installer", "update", str(config)]), patch.object(
+            installer, "nix_manifest", return_value=manifest
+        ), patch.object(
+            installer.InstallationRegistry,
+            "from_environment",
+            side_effect=AssertionError("update accessed the installation registry"),
+        ), patch("sys.stdout", new_callable=StringIO) as output:
+            installer.main()
+
+        self.assertIn("Preview only", output.getvalue())
 
     def test_update_output_shows_versions(self):
         self.run_install()
@@ -557,9 +584,9 @@ class InstallationTests(unittest.TestCase):
 
                 with patch(
                     "sys.argv",
-                    ["installer", "update", str(config), "--game-path", str(self.game)],
+                    ["installer", "update", str(config)],
                 ), patch.object(
-                    installer, "nix_manifest", return_value=schemas.Manifest(packages)
+                    installer, "nix_manifest", return_value=schemas.Manifest(packages, gamePath=str(self.game))
                 ), patch("sys.stdout", output):
                     installer.main()
 
@@ -575,7 +602,7 @@ class InstallationTests(unittest.TestCase):
 
         with patch(
             "sys.argv",
-            ["installer", "update", str(config), "--game-path", str(self.game)],
+            ["installer", "update", str(config)],
         ), patch.object(
             installer, "nix_manifest",
             return_value=schemas.Manifest.from_dict(self.manifest),
@@ -839,7 +866,7 @@ class InstallationTests(unittest.TestCase):
             self.assertEqual(generations.entries(), [root])
             with self.assertRaisesRegex(ValueError, "current generation"):
                 generations.remove(root.name)
-            locked.reconcile(schemas.Manifest(packages=[]), apply=True)
+            locked.reconcile(schemas.Manifest(packages=[], gamePath="/games/WoW"), apply=True)
 
         self.assertTrue(root.is_symlink())
         self.assertTrue(manifest.exists())

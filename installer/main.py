@@ -353,7 +353,7 @@ def nix_manifest(
     expression = (
         f"import (builtins.toPath {nix_string(repository / 'lib/manifest.nix')}) {{ "
         f"repository = {nix_string(repository)}; "
-        f"configuration = {nix_string(configuration)}; "
+        f"installationFile = {nix_string(configuration)}; "
         f"build = {'true' if build else 'false'}; }}"
     )
     command = [
@@ -560,11 +560,11 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     update = commands.add_parser("update", help="Preview or apply an addon selection")
     update.add_argument(
-        "config", type=Path, help="Nix function returning an addon package list"
+        "config", type=Path, help="Nix function returning gamePath and addons"
     )
-    update.add_argument(
-        "--game-path", type=Path, help="Game directory or unique installation ID prefix"
-    )
+    # MIGRATION (manifest schema 1 -> 2): recognize the removed update option
+    # only for guidance; remove together with its error below and migration test.
+    update.add_argument("--game-path", dest="removed_game_path", help=argparse.SUPPRESS)
     update.add_argument(
         "--apply", action="store_true", help="Build, stage, and install the selection"
     )
@@ -573,7 +573,7 @@ def main():
         "export", help="Build and export an addon selection as a ZIP"
     )
     export.add_argument(
-        "config", type=Path, help="Nix function returning an addon package list"
+        "config", type=Path, help="Nix function returning gamePath and addons"
     )
     export.add_argument(
         "--output", type=Path, required=True, help="Destination ZIP path"
@@ -629,6 +629,14 @@ def main():
 
     args = parser.parse_args()
 
+    # MIGRATION (manifest schema 1 -> 2): remove with the hidden option above.
+    if args.command == "update" and args.removed_game_path is not None:
+        update.error(
+            "--game-path is no longer supported for update; "
+            'set gamePath = "/path/to/WoW/_forever_"; in your Nix configuration '
+            "and remove --game-path from the command"
+        )
+
     try:
         if args.command == "installations":
             handle_installations(args, parser)
@@ -662,12 +670,17 @@ def main():
             print(f"Export complete: {args.output}")
             return
 
-        registry = InstallationRegistry.from_environment()
-        game_path = (
-            registry.resolve_game_path(args.game_path)
-            if args.game_path is not None
-            else registry.default_game_path
-        )
+        if args.command == "update":
+            configuration = args.config.resolve(strict=True)
+            manifest = nix_manifest(repository, configuration)
+            game_path = Path(manifest.gamePath).expanduser()
+        else:
+            registry = InstallationRegistry.from_environment()
+            game_path = (
+                registry.resolve_game_path(args.game_path)
+                if args.game_path is not None
+                else registry.default_game_path
+            )
         if game_path is None:
             print(
                 "error: No default installation; use installations default or --game-path",
@@ -682,8 +695,6 @@ def main():
                 print("Recovery complete")
                 return
 
-            configuration = args.config.resolve(strict=True)
-            manifest = nix_manifest(repository, configuration)
             plan = locked.reconcile(manifest)
             display_plan(plan)
 

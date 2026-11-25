@@ -48,6 +48,7 @@ class InstallationsTests(unittest.TestCase):
         for arguments in (
             (),
             ("update",),
+            ("update", "addons.nix", "--game-path", self.game),
             ("export", "addons.nix"),
             ("recover", "--apply"),
             ("export", "addons.nix", "--output", "addons.zip", "--game-path", self.game),
@@ -58,6 +59,27 @@ class InstallationsTests(unittest.TestCase):
                     self.cli(*arguments)
 
                 self.assertEqual(failure.exception.code, 2)
+
+    # MIGRATION (manifest schema 1 -> 2): remove with the hidden update option.
+    def test_update_game_path_reports_migration_before_evaluating_config(self):
+        for option in (
+            ("--game-path", str(self.game)),
+            (f"--game-path={self.game}",),
+        ):
+            with self.subTest(option=option):
+                errors = StringIO()
+                with (
+                    patch.object(installer, "nix_manifest") as evaluate,
+                    redirect_stderr(errors),
+                    self.assertRaises(SystemExit) as failure,
+                ):
+                    self.cli("update", "addons.nix", *option)
+
+                self.assertEqual(failure.exception.code, 2)
+                self.assertIn("--game-path is no longer supported for update", errors.getvalue())
+                self.assertIn("gamePath", errors.getvalue())
+                self.assertIn("configuration", errors.getvalue())
+                evaluate.assert_not_called()
 
     def test_recover_without_config(self):
         self.assertIn("Recovery complete", self.cli("recover", "--game-path", self.game))
@@ -237,14 +259,11 @@ class InstallationsTests(unittest.TestCase):
         self.cli("installations", "default", identifier)
         self.assertEqual(self.registry()["default"], identifier)
         with patch.object(
-            installer, "nix_manifest", return_value=installer.Manifest(packages=[])
+            installer, "nix_manifest", return_value=installer.Manifest(packages=[], gamePath=str(self.game))
         ):
             config = self.root / "addons.nix"
             config.touch()
             self.assertIn("Preview only", self.cli("update", config))
-            self.assertIn(
-                "Preview only", self.cli("update", config, "--game-path", identifier)
-            )
         self.cli("installations", "remove", self.game)
         self.assertEqual(self.registry()["installations"], {})
         self.assertIsNone(self.registry()["default"])
@@ -365,10 +384,13 @@ class InstallationsTests(unittest.TestCase):
         self.assertIn("Installation is not registered", errors.getvalue())
         self.assertEqual(self.registry(), before)
 
-    def test_missing_default_reports_cli_error(self):
+    def test_recover_without_default_reports_cli_error(self):
         errors = StringIO()
-        with redirect_stderr(errors), self.assertRaises(SystemExit) as failure:
-            self.cli("update", self.root / "addons.nix")
+        with (
+            redirect_stderr(errors),
+            self.assertRaises(SystemExit) as failure,
+        ):
+            self.cli("recover")
 
         self.assertEqual(failure.exception.code, 1)
         self.assertIn("No default installation", errors.getvalue())

@@ -1,6 +1,6 @@
 {
   repository,
-  configuration,
+  installationFile,
   build ? true,
 }:
 let
@@ -9,13 +9,18 @@ let
     system = builtins.currentSystem;
     config.allowUnfree = true;
   };
-  packages = import (builtins.toPath configuration) {
-    inherit pkgs;
-    inherit (pkgs) lib;
-    addons = import ../addons { inherit pkgs; };
-  };
+  inherit (pkgs) lib;
+  installation =
+    (lib.evalModules {
+      specialArgs = {
+        inherit pkgs installationFile;
+        addons = import ../addons { inherit pkgs; };
+      };
+      modules = [ ./installation.nix ];
+    }).config;
   manifest = {
-    schema = 1;
+    schema = 2;
+    gamePath = installation.gamePath;
     packages = map (package: {
       name = package.pname;
       inherit (package) version;
@@ -27,7 +32,7 @@ let
         hash = source.outputHash;
         hashAlgorithm = source.outputHashAlgo;
       }) (package.srcs or [ ]);
-    }) (pkgs.lib.concatMap (package: package.paths or [ package ]) packages);
+    }) (pkgs.lib.concatMap (package: package.paths or [ package ]) installation.addons);
   };
 in
 if build then pkgs.writeText "addon-manifest.json" (builtins.toJSON manifest) else manifest

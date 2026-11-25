@@ -21,16 +21,19 @@ Save your [addon selection](#updating-addons) as `addons.nix`, for example:
 
 ```nix
 { addons, ... }:
-[
-  addons.spoken-english
-  addons.atlasloot-classic-forever
-]
+{
+  gamePath = "/path/to/WoW/_forever_";
+  addons = [
+    addons.spoken-english
+    addons.atlasloot-classic-forever
+  ];
+}
 ```
 
 Apply it to your game installation:
 
 ```sh
-nix run github:noebm/nix-addon-manager -- update ./addons.nix --game-path /path/to/WoW/_forever_ --apply
+nix run github:noebm/nix-addon-manager -- update ./addons.nix --apply
 ```
 
 > [!TIP]
@@ -40,11 +43,12 @@ nix run github:noebm/nix-addon-manager -- update ./addons.nix --game-path /path/
 Replace `/path/to/WoW/_forever_` with the game directory containing
 `Interface/AddOns` and `.flavor.info`, with `.build.info` there or in its parent.
 Omit `--apply` to [preview the changes](#updating-addons) first.
-You can also [register a default installation](#installation-management) to omit `--game-path`.
 
 ### Updating addons
 
-The configuration receives `addons`, `pkgs`, and `lib`; unfree addons are enabled.
+The configuration is a Nix module with required `gamePath` (a nonempty string) and
+`addons` (a list of packages) options. It receives `addons`, `pkgs`, and `lib`;
+unfree addons are enabled. Module `imports` and option merging are supported.
 The installer leaves unrelated addons and `WTF` settings untouched. It rejects
 mismatched game flavors and newer addon interfaces, and warns about older ones.
 
@@ -55,14 +59,15 @@ Edit `addons.nix` and use these commands to preview, apply, or export your selec
 | `update ./addons.nix [--apply]` | Preview the changes and use `--apply` to apply them. |
 | `export ./addons.nix --output ./addons.zip` | Export the selected addons as a ZIP archive. |
 
-Add `--game-path <path-or-id>` to an update command to select an installation,
-or use the default.
+Configurations must return an attribute set containing `gamePath` and `addons`.
+Updates use `gamePath` from the configuration.
+Use a quoted string for `gamePath` (including `~/...` for a home-relative path).
 
 Addon versions are pinned in this repository and updated by its maintainers.
 Rerun the command to install the versions currently pinned in the repository.
 
 For ZIP exports, extract the archive into `Interface/AddOns` on the target machine. The ZIP
-must not already exist. Export creates no installation state.
+must not already exist. Export creates no installation state and ignores `gamePath`.
 
 ### Installation management
 
