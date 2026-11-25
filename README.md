@@ -93,8 +93,12 @@ Manage retained generations with these commands.
 | `generations remove <id>` | Remove an inactive generation by ID or unique prefix. |
 | `generations prune` | Remove all inactive generations. |
 
-Add `--game-path <path-or-id>` after the generation subcommand to select an
-installation, or use the default.
+Generation commands operate on all saved installations, including unregistered
+installations and games whose directories no longer exist. Add
+`--game-path <path-or-id>` after the generation subcommand to limit it to one
+installation; an unregistered installation can still be selected by its old path.
+Generation ID prefixes must be unique across the selected installations.
+Pruning preserves each installation's recorded current generation.
 
 ## Supported addons
 

@@ -12,7 +12,7 @@ import sys
 import tempfile
 import uuid
 import zipfile
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from functools import wraps
 from inspect import isfunction
@@ -461,49 +461,106 @@ def handle_installations(
             parser.error(f"Unknown installations action: {args.installation_action}")
 
 
+@contextmanager
+def saved_generations(state_dir: Path):
+    """Access saved generations without requiring the game to still exist."""
+    if state_dir.is_symlink():
+        raise ValueError("Manager state directory must not be a symlink")
+
+    fd = os.open(state_dir / "lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError(
+                "Another installer is operating on this game directory"
+            ) from None
+
+        if (state_dir / "transaction").exists():
+            raise ValueError("Interrupted transaction found; run recover first")
+
+        state_path = state_dir / "state.json"
+        state = (
+            InstallationState.from_dict(json.loads(state_path.read_text()))
+            if state_path.exists()
+            else InstallationState()
+        )
+        yield Generations(state_dir, state.manifest)
+
+
 def handle_generations(
     args: argparse.Namespace, parser: argparse.ArgumentParser
 ) -> None:
     registry = InstallationRegistry.from_environment()
-    selection = args.game_path
-    game = (
-        registry.resolve_game_path(selection)
-        if selection is not None
-        else registry.default_game_path
-    )
-    if game is None:
-        raise ValueError("No default installation; use --game-path")
+    root = state_directory()
+    if args.game_path is not None:
+        game = registry.resolve_game_path(args.game_path).resolve()
+        state_dir = root / installation_id(game)
+        state_dirs = [state_dir] if state_dir.exists() else []
+    else:
+        state_dirs = sorted(
+            state_dir
+            for state_dir in root.glob("*")
+            if len(state_dir.name) == 64
+            and all(character in "0123456789abcdef" for character in state_dir.name)
+            and state_dir.is_dir()
+        )
 
-    installation = Installation(game)
-    with installation.lock() as locked:
-        generations = locked.generations()
+    # ExitStack keeps all installation locks held for global generation commands
+    # without changing the per-installation state schema.
+    # FIXME: Manage generations from a single state description.
+    with ExitStack() as stack:
+        installations = [
+            stack.enter_context(saved_generations(state_dir))
+            for state_dir in state_dirs
+        ]
+        entries = [
+            (install_generations, generation)
+            for install_generations in installations
+            for generation in install_generations.entries()
+        ]
         match args.generation_action:
             case "prune":
                 inactive = [
-                    generation
-                    for generation in generations.entries()
-                    if str(generation) != generations.current
+                    (install_generations, generation)
+                    for install_generations, generation in entries
+                    if str(generation) != install_generations.current
                 ]
-                for generation in inactive:
-                    generations.remove(generation.name)
+                for install_generations, generation in inactive:
+                    install_generations.remove(generation.name)
                     print(f"Removed generation: {generation.name}")
 
                 if not inactive:
                     print("No old generations")
             case "remove":
-                removed = generations.remove(args.id)
+                matches = [
+                    (install_generations, generation)
+                    for install_generations, generation in entries
+                    if args.id and generation.name.startswith(args.id)
+                ]
+                if not matches:
+                    raise ValueError(f"Unknown generation ID: {args.id}")
+                if len(matches) > 1:
+                    raise ValueError(f"Ambiguous generation ID: {args.id}")
+
+                install_generations, generation = matches[0]
+                removed = install_generations.remove(generation.name)
                 print(f"Removed generation: {removed.name}")
             case "list":
-                entries = generations.entries()
                 print("Generations:")
                 if not entries:
                     print("  No generations")
 
-                for generation in entries:
+                for install_generations, generation in entries:
                     marker = (
-                        " (current)" if str(generation) == generations.current else ""
+                        " (current)"
+                        if str(generation) == install_generations.current
+                        else ""
                     )
-                    print(f"  {generation.name}{marker} -> {generation.readlink()}")
+                    print(
+                        f"  {generation.name}{marker} -> {generation.readlink()} "
+                        f"(installation {install_generations.control.name})"
+                    )
             case _:
                 parser.error(f"Unknown generations action: {args.generation_action}")
 

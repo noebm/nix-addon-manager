@@ -67,7 +67,65 @@ class InstallationsTests(unittest.TestCase):
             (self.root / "state/nix-addon-manager/installations.json").read_text()
         )
 
-    def test_generations_commands_use_default_and_installation_prefix(self):
+    def test_generations_operate_globally_and_can_be_scoped(self):
+        other = self.root / "other"
+        (other / "Interface/AddOns").mkdir(parents=True)
+        saved = []
+        for index, game in enumerate((self.game, other)):
+            self.cli("installations", "add", game)
+            installation = installer.Installation(game)
+            roots = installation.control / "roots"
+            roots.mkdir()
+            old = roots / f"abcd{index}"
+            current = roots / f"current{index}"
+            old.symlink_to("/missing-old")
+            current.symlink_to("/missing-current")
+            installer.write_json(
+                installation.state_path,
+                installer.InstallationState(game=str(game), manifest=str(current)),
+            )
+            saved.append((old, current))
+
+        output = self.cli("generations", "list")
+        self.assertIn("abcd0", output)
+        self.assertIn("abcd1", output)
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            self.cli("generations", "remove", "abcd")
+        self.assertTrue(all(old.is_symlink() for old, _ in saved))
+        self.cli("generations", "remove", "abcd0")
+        self.assertFalse(saved[0][0].is_symlink())
+        saved[0][0].symlink_to("/missing-old")
+        self.cli("generations", "prune", "--game-path", self.game)
+        self.assertFalse(saved[0][0].is_symlink())
+        self.assertTrue(saved[1][0].is_symlink())
+        self.cli("installations", "remove", other)
+        (other / "Interface/AddOns").rmdir()
+        (other / "Interface").rmdir()
+        other.rmdir()
+        self.cli("generations", "prune")
+        self.assertFalse(saved[1][0].is_symlink())
+        self.assertTrue(all(current.is_symlink() for _, current in saved))
+        self.assertIn("current1", self.cli("generations", "list", "--game-path", other))
+
+    def test_global_prune_checks_transactions_before_removing_roots(self):
+        roots = []
+        for name in ("first", "second"):
+            game = self.root / name
+            (game / "Interface/AddOns").mkdir(parents=True)
+            installation = installer.Installation(game)
+            directory = installation.control / "roots"
+            directory.mkdir()
+            old = directory / "old"
+            old.symlink_to("/missing")
+            roots.append(old)
+
+        installation.transaction.mkdir()
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            self.cli("generations", "prune")
+
+        self.assertTrue(all(root.is_symlink() for root in roots))
+
+    def test_generations_commands_accept_installation_prefix(self):
         self.cli("installations", "add", self.game)
         self.cli("installations", "default", self.game)
         identifier = next(iter(self.registry()["installations"]))
