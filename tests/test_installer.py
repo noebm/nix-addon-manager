@@ -547,9 +547,7 @@ class InstallationTests(unittest.TestCase):
 
         self.assertEqual(
             output.getvalue(),
-            "No addon updates found.\n"
-            "If updates were expected, add --refresh before the -- separator in nix run.\n"
-            "Preview only; pass --apply to install\n",
+            "Preview only; pass --apply to install\nNo addon updates found\n",
         )
 
     def test_update_uses_configured_game_path(self):
@@ -562,7 +560,29 @@ class InstallationTests(unittest.TestCase):
         ), patch("sys.stdout", new_callable=StringIO) as output:
             installer.main()
 
-        self.assertIn("Preview only", output.getvalue())
+        self.assertEqual(
+            output.getvalue(), "Preview only; pass --apply to install\ninstall: Test 1\n"
+        )
+
+    def test_apply_skips_installation_when_unchanged(self):
+        config = self.root / "addons.nix"
+        config.touch()
+        manifest = schemas.Manifest.from_dict(self.manifest)
+
+        with patch(
+            "sys.argv", ["installer", "update", str(config), "--apply"]
+        ), patch.object(installer, "nix_manifest", return_value=manifest) as build:
+            with patch("sys.stdout", new_callable=StringIO) as output:
+                installer.main()
+
+            self.assertEqual(output.getvalue(), "install: Test 1\n")
+            build.reset_mock()
+
+            with patch("sys.stdout", new_callable=StringIO) as output:
+                installer.main()
+
+            self.assertEqual(output.getvalue(), "No addon updates found\n")
+            build.assert_called_once_with(Path(installer.__file__).resolve().parents[1], config)
 
     def test_update_output_shows_versions(self):
         self.run_install()
@@ -593,7 +613,7 @@ class InstallationTests(unittest.TestCase):
 
                 self.assertEqual(
                     output.getvalue(),
-                    expected + "\nPreview only; pass --apply to install\n",
+                    "Preview only; pass --apply to install\n" + expected + "\n",
                 )
 
     def test_install_output_shows_version(self):
@@ -612,7 +632,7 @@ class InstallationTests(unittest.TestCase):
 
         self.assertEqual(
             output.getvalue(),
-            "install: Test 1\nPreview only; pass --apply to install\n",
+            "Preview only; pass --apply to install\ninstall: Test 1\n",
         )
 
     def test_unmanaged_and_duplicate_ownership_conflict(self):

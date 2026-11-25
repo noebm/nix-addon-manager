@@ -559,15 +559,17 @@ def update(
     installation = Installation(game_path)
     with installation.lock() as locked:
         plan = locked.reconcile(manifest)
+        has_changes = any(not is_unchanged(operation) for operation in plan.values())
+
+        if not args.apply:
+            print("Preview only; pass --apply to install")
+
         display_plan(plan)
 
-        if all(is_unchanged(operation) for operation in plan.values()):
-            print("No addon updates found.")
-            print(
-                "If updates were expected, add --refresh before the -- separator in nix run."
-            )
+        if not has_changes:
+            print("No addon updates found")
 
-        if args.apply:
+        if args.apply and has_changes:
             generations = locked.generations()
             root = generations.add()
             # Keep every generation rooted, including interrupted operations and backups.
@@ -575,9 +577,6 @@ def update(
             if built != manifest:
                 raise ValueError("Configuration changed during build; preview again")
             locked.reconcile(built, apply=True, manifest_root=root)
-            print("Installation complete")
-        else:
-            print("Preview only; pass --apply to install")
 
 
 def recover(args: argparse.Namespace, repository: Path) -> None:

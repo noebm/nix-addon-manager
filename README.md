@@ -72,7 +72,7 @@ Edit `addons.nix` and use these commands to preview, apply, or export your selec
 
 | Arguments | Action |
 | --- | --- |
-| `update ./addons.nix [--apply]` | Preview the changes and use `--apply` to apply them. |
+| `update ./addons.nix [--apply]` | Show addon changes; use `--apply` to apply them. |
 | `export ./addons.nix --output ./addons.zip` | Export the selected addons as a ZIP archive. |
 
 Configurations must return an attribute set containing `installation.gamePath`
