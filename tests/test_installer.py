@@ -545,7 +545,12 @@ class InstallationTests(unittest.TestCase):
         ):
             installer.main()
 
-        self.assertEqual(output.getvalue(), "Preview only; pass --apply to install\n")
+        self.assertEqual(
+            output.getvalue(),
+            "No addon updates found.\n"
+            "If updates were expected, add --refresh before the -- separator in nix run.\n"
+            "Preview only; pass --apply to install\n",
+        )
 
     def test_update_uses_configured_game_path(self):
         config = self.root / "addons.nix"

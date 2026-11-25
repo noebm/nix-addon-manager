@@ -645,6 +645,14 @@ def main():
             plan = locked.reconcile(manifest)
             display_plan(plan)
 
+            if args.command == "update" and all(
+                is_unchanged(operation) for operation in plan.values()
+            ):
+                print("No addon updates found.")
+                print(
+                    "If updates were expected, add --refresh before the -- separator in nix run."
+                )
+
             if args.apply:
                 generations = locked.generations()
                 root = generations.add()
