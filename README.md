@@ -69,20 +69,10 @@ Rerun the command to install the versions currently pinned in the repository.
 For ZIP exports, extract the archive into `Interface/AddOns` on the target machine. The ZIP
 must not already exist. Export creates no installation state and ignores `gamePath`.
 
-### Installation management
+### Recovery
 
-| Arguments | Action |
-| --- | --- |
-| `installations add <path>` | Register a game installation. |
-| `installations list` | List registered installations. |
-| `installations default [<path-or-id>]` | Set the default installation with `<path-or-id>`, or omit it to show the default. |
-| `installations remove <path-or-id>` | Unregister an installation without removing addons. |
-| `recover` | Recover an interrupted installation without a configuration. |
-
-`--game-path`, `installations default`, and `installations remove` accept a path
-or unique ID prefix. Use `--full` on an installations command to show full IDs.
-Add `--game-path <path-or-id>` to `recover` to select an installation,
-or omit it to use the default.
+Use `recover --game-path <path>` to recover an interrupted installation without a
+configuration.
 
 ### Generation management
 
@@ -98,10 +88,10 @@ Manage retained generations with these commands.
 | `generations remove <id>` | Remove an inactive generation by ID or unique prefix. |
 | `generations prune` | Remove all inactive generations. |
 
-Generation commands operate on all saved installations, including unregistered
-installations and games whose directories no longer exist. Add
-`--game-path <path-or-id>` after the generation subcommand to limit it to one
-installation; an unregistered installation can still be selected by its old path.
+Generation commands operate on all saved installations, including games whose
+directories no longer exist. Add
+`--game-path <path>` after the generation subcommand to limit it to one
+installation; a missing game can still be selected by its old path.
 Generation ID prefixes must be unique across the selected installations.
 Pruning preserves each installation's recorded current generation.
 
@@ -148,11 +138,7 @@ Addon files and generated manifests live in the Nix store. The game's addon
 directory contains links to the addon files. Your `addons.nix` configuration stays
 where you saved it.
 
-Registrations and the default selection are saved in
-`$XDG_STATE_HOME/nix-addon-manager/installations.json`, defaulting to
-`~/.local/state/nix-addon-manager/installations.json`.
-
-Other installer files live under
+Installer files live under
 `$XDG_STATE_HOME/nix-addon-manager/<installation-id>/`, defaulting to
 `~/.local/state/nix-addon-manager/<installation-id>/`. Each game installation has
 its own directory. To change this location, set `XDG_STATE_HOME` to an absolute

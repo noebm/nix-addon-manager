@@ -554,10 +554,6 @@ class InstallationTests(unittest.TestCase):
 
         with patch("sys.argv", ["installer", "update", str(config)]), patch.object(
             installer, "nix_manifest", return_value=manifest
-        ), patch.object(
-            installer.InstallationRegistry,
-            "from_environment",
-            side_effect=AssertionError("update accessed the installation registry"),
         ), patch("sys.stdout", new_callable=StringIO) as output:
             installer.main()
 

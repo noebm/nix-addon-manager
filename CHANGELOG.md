@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+- **Breaking change:** Remove manual installation registration, the
+  `installations` commands, default installation selection, and installation ID
+  shortcuts. Updates use `gamePath` from `addons.nix`; recovery now requires
+  `recover --game-path <path>`. Generation commands continue to discover all
+  saved installations automatically; use `--game-path <path>` to filter them
+  instead of an installation ID. Existing per-installation state and generations
+  remain available.
+
 ## 0.2.0
 
 - **Breaking change:** Declare each installation in `addons.nix` as a Nix module

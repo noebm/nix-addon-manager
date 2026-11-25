@@ -23,7 +23,6 @@ from .client import validate_compatibility
 from .delta import Operation, display_plan, generate_plan, is_unchanged
 from .generations import Generations
 from .installations import (
-    InstallationRegistry,
     installation_id,
     state_directory,
     validate_game_path,
@@ -402,55 +401,6 @@ def export_zip(manifest: Manifest, destination: Path) -> None:
         os.link(archive_path, destination)
 
 
-def handle_installations(
-    args: argparse.Namespace, parser: argparse.ArgumentParser
-) -> None:
-    registry = InstallationRegistry.from_environment()
-
-    def display(installation):
-        return registry.format_installation(installation, full=args.full)
-
-    match args.installation_action:
-        case "list":
-            installations = registry.list_installations()
-            print("Installations:")
-            if not installations:
-                print("  No installations registered")
-
-            for installation, is_default in installations:
-                marker = " (default)" if is_default else ""
-                print(f"  {display(installation)}{marker}")
-        case "add":
-            added = registry.add(Path(args.path))
-            print(f"Installation {display(added)} has been added")
-        case "default":
-            if args.path is None:
-                game_path = registry.default_game_path
-                if game_path is None:
-                    print("error: No default installation", file=sys.stderr)
-                    sys.exit(1)
-
-                print(game_path)
-            else:
-                selected = registry.set_default(args.path)
-                if selected is None:
-                    print(
-                        f"error: Installation is not registered: {args.path}",
-                        file=sys.stderr,
-                    )
-                    sys.exit(1)
-
-                print(f"Installation {display(selected)} has been set as default")
-        case "remove":
-            removed = registry.remove(args.path)
-            if removed is None:
-                print(f"Installation {args.path} is already absent")
-            else:
-                print(f"Installation {display(removed)} has been removed")
-        case _:
-            parser.error(f"Unknown installations action: {args.installation_action}")
-
-
 @contextmanager
 def saved_generations(state_dir: Path):
     """Access saved generations without requiring the game to still exist."""
@@ -481,10 +431,9 @@ def saved_generations(state_dir: Path):
 def handle_generations(
     args: argparse.Namespace, parser: argparse.ArgumentParser
 ) -> None:
-    registry = InstallationRegistry.from_environment()
     root = state_directory()
     if args.game_path is not None:
-        game = registry.resolve_game_path(args.game_path).resolve()
+        game = args.game_path.expanduser().resolve()
         state_dir = root / installation_id(game)
         state_dirs = [state_dir] if state_dir.exists() else []
     else:
@@ -580,9 +529,7 @@ def main():
     )
 
     recover = commands.add_parser("recover", help="Recover an interrupted transaction")
-    recover.add_argument(
-        "--game-path", type=Path, help="Game directory or unique installation ID prefix"
-    )
+    recover.add_argument("--game-path", type=Path, required=True, help="Game directory")
 
     generations = commands.add_parser(
         "generations", help="Manage installation generations"
@@ -601,31 +548,8 @@ def main():
         command.add_argument(
             "--game-path",
             type=Path,
-            help="Game directory or unique installation ID prefix",
+            help="Game directory",
         )
-
-    installations = commands.add_parser(
-        "installations", help="Manage registered game installations"
-    )
-    installation_commands = installations.add_subparsers(
-        dest="installation_action", required=True
-    )
-    for name in ("add", "remove", "default"):
-        command = installation_commands.add_parser(name)
-        command.add_argument(
-            "--full", action="store_true", help="Show complete installation IDs"
-        )
-        command.add_argument(
-            "path",
-            nargs="?" if name == "default" else None,
-            help="Game directory"
-            if name == "add"
-            else "Game directory or unique installation ID prefix",
-        )
-    listing = installation_commands.add_parser("list")
-    listing.add_argument(
-        "--full", action="store_true", help="Show complete installation IDs"
-    )
 
     args = parser.parse_args()
 
@@ -638,11 +562,6 @@ def main():
         )
 
     try:
-        if args.command == "installations":
-            handle_installations(args, parser)
-
-            return
-
         if args.command == "generations":
             handle_generations(args, parser)
             return
@@ -675,18 +594,7 @@ def main():
             manifest = nix_manifest(repository, configuration)
             game_path = Path(manifest.gamePath).expanduser()
         else:
-            registry = InstallationRegistry.from_environment()
-            game_path = (
-                registry.resolve_game_path(args.game_path)
-                if args.game_path is not None
-                else registry.default_game_path
-            )
-        if game_path is None:
-            print(
-                "error: No default installation; use installations default or --game-path",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+            game_path = args.game_path.expanduser()
 
         installation = Installation(game_path)
         with installation.lock() as locked:
