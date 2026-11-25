@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.0
+
+- Group configuration options under `installation`: use `installation.gamePath`
+  and `installation.addons`. Discovery prints the namespaced game path.
+  List-only configuration errors show how to migrate directly to this layout.
+
+  Migrate by putting your existing addon list in `installation.addons`, adding
+  `installation.gamePath`, and removing `--game-path` from update commands:
+
+  ```nix
+  { addons, ... }:
+  {
+    installation = {
+      gamePath = "/path/to/WoW/_forever_";
+      addons = [
+        addons.spoken-english
+        addons.atlasloot-classic-forever
+      ];
+    };
+  }
+  ```
+
+  ```sh
+  nix run github:noebm/nix-addon-manager -- update ./addons.nix --apply
+  ```
+
 ## 0.4.0
 
 - **Breaking change:** Recovery accepts `recover <config-or-game-directory>`

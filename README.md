@@ -23,7 +23,7 @@ Find your local game installations:
 nix run github:noebm/nix-addon-manager -- discover
 ```
 
-This searches your home directory and prints a `gamePath` assignment for each
+This searches your home directory and prints an `installation.gamePath` assignment for each
 validated client, with its flavor and interface version. Copy the appropriate
 assignment into `addons.nix`. To search another drive or a narrower directory, use
 `discover /path/to/games [other-directory ...]`. Discovery does not modify files
@@ -36,11 +36,13 @@ Save your [addon selection](#updating-addons) as `addons.nix`, for example:
 ```nix
 { addons, ... }:
 {
-  gamePath = "/path/to/WoW/_forever_";
-  addons = [
-    addons.spoken-english
-    addons.atlasloot-classic-forever
-  ];
+  installation = {
+    gamePath = "/path/to/WoW/_forever_";
+    addons = [
+      addons.spoken-english
+      addons.atlasloot-classic-forever
+    ];
+  };
 }
 ```
 
@@ -60,8 +62,8 @@ Omit `--apply` to [preview the changes](#updating-addons) first.
 
 ### Updating addons
 
-The configuration is a Nix module with required `gamePath` (a nonempty string) and
-`addons` (a list of packages) options. It receives `addons`, `pkgs`, and `lib`;
+The configuration is a Nix module with required `installation.gamePath` (a nonempty string)
+and `installation.addons` (a list of packages) options. It receives `addons`, `pkgs`, and `lib`;
 unfree addons are enabled. Module `imports` and option merging are supported.
 The installer leaves unrelated addons and `WTF` settings untouched. It rejects
 mismatched game flavors and newer addon interfaces, and warns about older ones.
@@ -73,9 +75,10 @@ Edit `addons.nix` and use these commands to preview, apply, or export your selec
 | `update ./addons.nix [--apply]` | Preview the changes and use `--apply` to apply them. |
 | `export ./addons.nix --output ./addons.zip` | Export the selected addons as a ZIP archive. |
 
-Configurations must return an attribute set containing `gamePath` and `addons`.
-Updates use `gamePath` from the configuration.
-Use a quoted string for `gamePath` (including `~/...` for a home-relative path).
+Configurations must return an attribute set containing `installation.gamePath`
+and `installation.addons`.
+Updates use `installation.gamePath` from the configuration.
+Use a quoted string for `installation.gamePath` (including `~/...` for a home-relative path).
 
 Addon versions are pinned in this repository and updated by its maintainers.
 Rerun the command to install the versions currently pinned in the repository.
@@ -86,7 +89,7 @@ must not already exist. Export creates no installation state and ignores `gamePa
 ### Recovery
 
 Use `recover ./addons.nix` to recover an interrupted installation using the
-configuration's `gamePath`, or `recover <game-directory>` to recover directly
+configuration's `installation.gamePath`, or `recover <game-directory>` to recover directly
 without a configuration or Nix evaluation.
 
 ### Generation management

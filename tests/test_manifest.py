@@ -30,14 +30,32 @@ class ManifestTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("List-only addon configurations are no longer supported", result.stderr)
-        self.assertIn('gamePath = "/path/to/WoW/_forever_";', result.stderr)
-        self.assertIn("addons = [", result.stderr)
+        self.assertIn('installation.gamePath = "/path/to/WoW/_forever_";', result.stderr)
+        self.assertIn("installation.addons = [", result.stderr)
+
+    def test_root_options_are_rejected(self) -> None:
+        repository = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            configuration = Path(directory) / "addons.nix"
+            configuration.write_text('{ ... }: { gamePath = "/game"; addons = []; }')
+            result = subprocess.run(
+                [
+                    "nix", "eval", "--impure", "--json", "--expr",
+                    f"import {repository / 'lib/manifest.nix'} {{ "
+                    f"repository = {json.dumps(str(repository))}; "
+                    f"installationFile = {json.dumps(str(configuration))}; build = false; }}",
+                ],
+                text=True, capture_output=True,
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not exist", result.stderr)
 
     def test_configuration_requires_game_path(self):
         repository = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory:
             configuration = Path(directory) / "addons.nix"
-            for expression in ("{ ... }: []", "{ ... }: { addons = []; }"):
+            for expression in ("{ ... }: []", "{ ... }: { installation.addons = []; }"):
                 with self.subTest(expression=expression):
                     configuration.write_text(expression)
                     with self.assertRaises(subprocess.CalledProcessError):
@@ -48,12 +66,12 @@ class ManifestTests(unittest.TestCase):
         shape_error = "addons"
         path_error = "gamePath"
         cases = [
-            ('{ gamePath = "/game"; }', shape_error),
-            ('{ gamePath = "/game"; addons = null; }', shape_error),
-            ("{ addons = []; }", path_error),
-            ('{ gamePath = "/game"; addons = [ 123 ]; }', shape_error),
-            ('{ gamePath = "/game"; addons = []; typo = true; }', "typo"),
-            *[(f"{{ addons = []; gamePath = {value}; }}", path_error)
+            ('{ installation.gamePath = "/game"; }', shape_error),
+            ('{ installation = { gamePath = "/game"; addons = null; }; }', shape_error),
+            ("{ installation.addons = []; }", path_error),
+            ('{ installation = { gamePath = "/game"; addons = [ 123 ]; }; }', shape_error),
+            ('{ installation = { gamePath = "/game"; addons = []; typo = true; }; }', "typo"),
+            *[(f"{{ installation = {{ addons = []; gamePath = {value}; }}; }}", path_error)
               for value in ('null', '123', '""', './.')],
         ]
         with tempfile.TemporaryDirectory() as directory:
@@ -79,14 +97,14 @@ class ManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             configuration = Path(directory) / "addons.nix"
             (Path(directory) / "base.nix").write_text('''{ lib, addons, ... }: {
-              gamePath = lib.mkDefault "/default";
-              addons = [ addons.books-on-map-forever ];
+              installation.gamePath = lib.mkDefault "/default";
+              installation.addons = [ addons.books-on-map-forever ];
             }''')
             configuration.write_text('''{ config, ... }: {
               imports = [ ./base.nix ];
               config = {
-                gamePath = "/game";
-                addons = if config.gamePath == "/game" then [] else throw "wrong path";
+                installation.gamePath = "/game";
+                installation.addons = if config.installation.gamePath == "/game" then [] else throw "wrong path";
               };
             }''')
             manifest = nix_manifest(repository, configuration)
@@ -99,8 +117,8 @@ class ManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             configuration = Path(directory) / "addons.nix"
             configuration.write_text('''{ addons, ... }: {
-              gamePath = "/games/WoW/_forever_";
-              addons = [ addons.books-on-map-forever ];
+              installation.gamePath = "/games/WoW/_forever_";
+              installation.addons = [ addons.books-on-map-forever ];
             }''')
             manifest = nix_manifest(repository, configuration)
 
@@ -111,14 +129,14 @@ class ManifestTests(unittest.TestCase):
         repository = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory:
             configuration = Path(directory) / "addons.nix"
-            configuration.write_text("""{ addons, ... }: { gamePath = "/games/WoW"; addons = [
+            configuration.write_text("""{ addons, ... }: { installation.gamePath = "/games/WoW"; installation.addons = [
               addons.books-on-map-forever
               addons.spoken-english
             ]; }""")
             before = nix_manifest(repository, configuration)
             self.assertEqual(len(before.packages), 6)
 
-            configuration.write_text("""{ addons, ... }: { gamePath = "/games/WoW"; addons = [
+            configuration.write_text("""{ addons, ... }: { installation.gamePath = "/games/WoW"; installation.addons = [
               addons.books-on-map-forever
               (addons.spoken-english.overrideAttrs (old: {
                 passthru = old.passthru // {

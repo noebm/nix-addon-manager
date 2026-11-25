@@ -17,7 +17,7 @@ let
         addons = import ../addons { inherit pkgs; };
       };
       modules = [ ./installation.nix ];
-    }).config;
+    }).config.installation;
   manifest = {
     schema = 2;
     gamePath = installation.gamePath;

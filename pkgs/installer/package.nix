@@ -8,7 +8,7 @@
 
 stdenvNoCC.mkDerivation {
   pname = "nix-addon-manager";
-  version = "0.4.0";
+  version = "0.5.0";
   src = lib.cleanSourceWith {
     src = ../..;
     filter = path: type: lib.cleanSourceFilter path type && baseNameOf path != "__pycache__";

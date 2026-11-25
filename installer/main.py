@@ -440,7 +440,7 @@ def discover(args: argparse.Namespace) -> None:
     for game, client in clients:
         path = json.dumps(str(game), ensure_ascii=False).replace("${", "\\${")
         print(f"# {client.flavor} (interface {client.interface})")
-        print(f"gamePath = {path};")
+        print(f"installation.gamePath = {path};")
 
     if not clients:
         print("No installations found")
@@ -548,7 +548,7 @@ def update(
     if args.removed_game_path is not None:
         parser.error(
             "--game-path is no longer supported for update; "
-            'set gamePath = "/path/to/WoW/_forever_"; in your Nix configuration '
+            'set installation.gamePath = "/path/to/WoW/_forever_"; in your Nix configuration '
             "and remove --game-path from the command"
         )
 
@@ -616,7 +616,9 @@ def main():
         "update", help="Preview or apply an addon selection"
     )
     update_parser.add_argument(
-        "config", type=Path, help="Nix function returning gamePath and addons"
+        "config",
+        type=Path,
+        help="Nix module defining installation.gamePath and installation.addons",
     )
     # MIGRATION (manifest schema 1 -> 2): recognize the removed update option
     # only for guidance; remove together with its error below and migration test.
@@ -631,7 +633,9 @@ def main():
         "export", help="Build and export an addon selection as a ZIP"
     )
     export_parser.add_argument(
-        "config", type=Path, help="Nix function returning gamePath and addons"
+        "config",
+        type=Path,
+        help="Nix module defining installation.gamePath and installation.addons",
     )
     export_parser.add_argument(
         "--output", type=Path, required=True, help="Destination ZIP path"

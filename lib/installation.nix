@@ -23,16 +23,16 @@ let
     if builtins.isList definition then
       throw ''
         List-only addon configurations are no longer supported (${installationFile}).
-        Keep your existing addon list in the addons attribute and add your game path:
+        Put your existing addon list and game path under installation:
 
         { addons, ... }: {
-          gamePath = "/path/to/WoW/_forever_";
-          addons = [
+          installation.gamePath = "/path/to/WoW/_forever_";
+          installation.addons = [
             # Your existing addons go here.
           ];
         }
 
-        Update commands now use gamePath from this file; remove --game-path from them.
+        Update commands now use installation.gamePath from this file; remove --game-path from them.
       ''
     else
       definition // { _file = installationFile; };
@@ -40,14 +40,14 @@ in
 {
   imports = [ userModule ];
 
-  options = {
+  options.installation = {
     gamePath = lib.mkOption {
       type = lib.types.nonEmptyStr;
       description = "Game directory, expressed as a quoted string rather than a Nix path.";
     };
     addons = lib.mkOption {
       type = lib.types.listOf lib.types.package;
-      default = throw "The option `addons' must be defined, even if it is an empty list.";
+      default = throw "The option `installation.addons' must be defined, even if it is an empty list.";
       description = "Selected addon packages.";
     };
   };

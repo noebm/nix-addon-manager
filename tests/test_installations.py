@@ -54,8 +54,8 @@ class InstallationsTests(unittest.TestCase):
 
         output = self.cli("discover", self.root, game, alias)
 
-        self.assertEqual(output.count("gamePath ="), 1)
-        self.assertIn(f'gamePath = "{game}";', output)
+        self.assertEqual(output.count("installation.gamePath ="), 1)
+        self.assertIn(f'installation.gamePath = "{game}";', output)
         self.assertIn("forever", output)
         self.assertIn("16001", output)
         self.assertFalse((self.root / "state").exists())
@@ -70,8 +70,8 @@ class InstallationsTests(unittest.TestCase):
         with patch("pathlib.Path.home", return_value=self.root), redirect_stderr(errors):
             output = self.cli("discover")
 
-        self.assertIn(f'gamePath = "{self.game}";', output)
-        self.assertNotIn(f'gamePath = "{broken}";', output)
+        self.assertIn(f'installation.gamePath = "{self.game}";', output)
+        self.assertNotIn(f'installation.gamePath = "{broken}";', output)
         self.assertIn(str(broken), errors.getvalue())
 
     def test_discover_empty_and_missing_roots(self):
@@ -92,7 +92,7 @@ class InstallationsTests(unittest.TestCase):
         with redirect_stderr(errors):
             output = self.cli("discover", self.root)
 
-        self.assertIn(f'gamePath = "{self.game}";', output)
+        self.assertIn(f'installation.gamePath = "{self.game}";', output)
         self.assertEqual(errors.getvalue(), "")
 
     def test_discover_escapes_nix_interpolation(self):
