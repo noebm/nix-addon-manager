@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0
+
+- **Breaking change:** Remove the `generations list`, `generations remove`, and `generations prune`
+  commands. Applied updates and recovery now release inactive GC roots while
+  preserving the installed generation. Previous builds remain reusable until
+  Nix garbage collection removes them.
+
+  Existing roots are cleaned on the next `update --apply`, even when no addons
+  change. Run the global cleanup command to release inactive roots across all
+  saved installations, including all roots for deleted games:
+
+  ```sh
+  nix run github:noebm/nix-addon-manager -- cleanup
+  ```
+
+  Cleanup preserves current roots for existing games and skips busy installations
+  and interrupted transactions. Recover interrupted transactions and rerun cleanup
+  to release their unused roots. Run Nix garbage collection to reclaim the space.
+
 ## 0.5.0
 
 - Group configuration options under `installation`: use `installation.gamePath`

@@ -12,7 +12,7 @@ import sys
 import tempfile
 import uuid
 import zipfile
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from functools import wraps
 from inspect import isfunction
@@ -401,38 +401,57 @@ def export_zip(manifest: Manifest, destination: Path) -> None:
         os.link(archive_path, destination)
 
 
-@contextmanager
-def saved_generations(state_dir: Path, *, prune: bool = False):
-    """Access saved generations without requiring the game to still exist."""
-    if state_dir.is_symlink():
-        raise ValueError("Manager state directory must not be a symlink")
-
-    fd = os.open(state_dir / "lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, "w") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise ValueError(
-                "Another installer is operating on this game directory"
-            ) from None
-
-        if (state_dir / "transaction").exists():
-            raise ValueError("Interrupted transaction found; run recover first")
-
-        state_path = state_dir / "state.json"
-        state = (
-            InstallationState.from_dict(json.loads(state_path.read_text()))
-            if state_path.exists()
-            else InstallationState()
-        )
-        current = state.manifest
-        if prune and state.game is not None and not Path(state.game).exists():
-            current = None
-
-        yield Generations(state_dir, current)
-
-
 # CLI commands
+
+
+def cleanup() -> None:
+    """Release unused roots across saved installations under their locks.
+
+    Busy installations and interrupted transactions are reported and skipped.
+    Filesystem errors and invalid saved state propagate to the CLI error handler.
+    """
+    for control in sorted(state_directory().glob("*")):
+        if (
+            control.is_symlink()
+            or not control.is_dir()
+            or (control / "roots").is_symlink()
+            or not (control / "roots").is_dir()
+        ):
+            continue
+
+        fd = os.open(control / "lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "w") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                print(f"Skipping {control.name}: installation is busy", file=sys.stderr)
+                continue
+
+            if (control / "transaction").exists():
+                print(
+                    f"Skipping {control.name}: interrupted transaction; run recover first",
+                    file=sys.stderr,
+                )
+                continue
+
+            state_path = control / "state.json"
+            state = (
+                InstallationState.from_dict(json.loads(state_path.read_text()))
+                if state_path.exists()
+                else InstallationState()
+            )
+            current = state.manifest
+            if state.game is not None:
+                try:
+                    Path(state.game).stat()
+                except FileNotFoundError:
+                    current = None
+
+            Generations(control, current).prune()
+
+    print(
+        "Cleanup complete; run Nix garbage collection to reclaim unused store contents"
+    )
 
 
 def discover(args: argparse.Namespace) -> None:
@@ -444,82 +463,6 @@ def discover(args: argparse.Namespace) -> None:
 
     if not clients:
         print("No installations found")
-
-
-def generations(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
-    root = state_directory()
-    if args.game_path is not None:
-        game = args.game_path.expanduser().resolve()
-        state_dir = root / installation_id(game)
-        state_dirs = [state_dir] if state_dir.exists() else []
-    else:
-        state_dirs = sorted(
-            state_dir
-            for state_dir in root.glob("*")
-            if len(state_dir.name) == 64
-            and all(character in "0123456789abcdef" for character in state_dir.name)
-            and state_dir.is_dir()
-        )
-
-    # ExitStack keeps all installation locks held for global generation commands
-    # without changing the per-installation state schema.
-    # FIXME: Manage generations from a single state description.
-    with ExitStack() as stack:
-        installations = [
-            stack.enter_context(
-                saved_generations(state_dir, prune=args.generation_action == "prune")
-            )
-            for state_dir in state_dirs
-        ]
-        entries = [
-            (install_generations, generation)
-            for install_generations in installations
-            for generation in install_generations.entries()
-        ]
-        match args.generation_action:
-            case "prune":
-                inactive = [
-                    (install_generations, generation)
-                    for install_generations, generation in entries
-                    if str(generation) != install_generations.current
-                ]
-                for install_generations, generation in inactive:
-                    install_generations.remove(generation.name)
-                    print(f"Removed generation: {generation.name}")
-
-                if not inactive:
-                    print("No old generations")
-            case "remove":
-                matches = [
-                    (install_generations, generation)
-                    for install_generations, generation in entries
-                    if args.id and generation.name.startswith(args.id)
-                ]
-                if not matches:
-                    raise ValueError(f"Unknown generation ID: {args.id}")
-                if len(matches) > 1:
-                    raise ValueError(f"Ambiguous generation ID: {args.id}")
-
-                install_generations, generation = matches[0]
-                removed = install_generations.remove(generation.name)
-                print(f"Removed generation: {removed.name}")
-            case "list":
-                print("Generations:")
-                if not entries:
-                    print("  No generations")
-
-                for install_generations, generation in entries:
-                    marker = (
-                        " (current)"
-                        if str(generation) == install_generations.current
-                        else ""
-                    )
-                    print(
-                        f"  {generation.name}{marker} -> {generation.readlink()} "
-                        f"(installation {install_generations.control.name})"
-                    )
-            case _:
-                parser.error(f"Unknown generations action: {args.generation_action}")
 
 
 def export(args: argparse.Namespace, repository: Path) -> None:
@@ -569,14 +512,20 @@ def update(
         if not has_changes:
             print("No addon updates found")
 
-        if args.apply and has_changes:
-            generations = locked.generations()
-            root = generations.add()
-            # Keep every generation rooted, including interrupted operations and backups.
-            built = nix_manifest(repository, configuration, out_link=root)
-            if built != manifest:
-                raise ValueError("Configuration changed during build; preview again")
-            locked.reconcile(built, apply=True, manifest_root=root)
+        if args.apply:
+            try:
+                if has_changes:
+                    root = locked.generations().add()
+                    built = nix_manifest(repository, configuration, out_link=root)
+                    if built != manifest:
+                        raise ValueError(
+                            "Configuration changed during build; preview again"
+                        )
+                    locked.reconcile(built, apply=True, manifest_root=root)
+            finally:
+                # Pending transactions may still need both old and new outputs.
+                if not installation.transaction.exists():
+                    locked.generations().prune()
 
 
 def recover(args: argparse.Namespace, repository: Path) -> None:
@@ -598,6 +547,7 @@ def recover(args: argparse.Namespace, repository: Path) -> None:
             )
 
         locked.recover()
+        locked.generations().prune()
         print("Recovery complete")
 
 
@@ -647,25 +597,9 @@ def main():
         "target", type=Path, help="Nix configuration or game directory"
     )
 
-    generations_parser = commands.add_parser(
-        "generations", help="Manage installation generations"
+    commands.add_parser(
+        "cleanup", help="Release unused GC roots across saved installations"
     )
-    generation_commands = generations_parser.add_subparsers(
-        dest="generation_action", required=True
-    )
-    listing = generation_commands.add_parser("list")
-    pruning = generation_commands.add_parser(
-        "prune",
-        help="Remove all inactive generation roots (keeps the current generation)",
-    )
-    removal = generation_commands.add_parser("remove")
-    removal.add_argument("id", help="Generation ID or unique prefix")
-    for command in (listing, pruning, removal):
-        command.add_argument(
-            "--game-path",
-            type=Path,
-            help="Game directory",
-        )
 
     args = parser.parse_args()
 
@@ -673,10 +607,10 @@ def main():
         repository = Path(__file__).resolve().parents[1]
 
         match args.command:
+            case "cleanup":
+                cleanup()
             case "discover":
                 discover(args)
-            case "generations":
-                generations(args, parser)
             case "export":
                 export(args, repository)
             case "update":

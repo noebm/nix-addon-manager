@@ -550,6 +550,30 @@ class InstallationTests(unittest.TestCase):
             "Preview only; pass --apply to install\nNo addon updates found\n",
         )
 
+    def test_apply_cleans_legacy_roots_even_when_unchanged(self):
+        root = self.control / "roots/current"
+        root.parent.mkdir()
+        root.symlink_to(self.source)
+        old = root.parent / "legacy"
+        old.symlink_to(self.root / "missing")
+        install = installer.Installation(self.game)
+        with install.lock() as locked:
+            locked.reconcile(
+                schemas.Manifest.from_dict(self.manifest),
+                apply=True,
+                manifest_root=root,
+            )
+
+        config = self.root / "addons.nix"
+        config.touch()
+        with patch("sys.argv", ["installer", "update", str(config), "--apply"]), patch.object(
+            installer, "nix_manifest", return_value=schemas.Manifest.from_dict(self.manifest)
+        ), patch("sys.stdout", new_callable=StringIO):
+            installer.main()
+
+        self.assertFalse(old.is_symlink())
+        self.assertTrue(root.is_symlink())
+
     def test_update_uses_configured_game_path(self):
         config = self.root / "addons.nix"
         config.touch()
@@ -885,8 +909,8 @@ class InstallationTests(unittest.TestCase):
             self.assertEqual(locked.state().manifest, str(root))
             generations = locked.generations()
             self.assertEqual(generations.entries(), [root])
-            with self.assertRaisesRegex(ValueError, "current generation"):
-                generations.remove(root.name)
+            generations.prune()
+            self.assertTrue(root.is_symlink())
             locked.reconcile(schemas.Manifest(packages=[], gamePath="/games/WoW"), apply=True)
 
         self.assertTrue(root.is_symlink())

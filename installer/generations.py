@@ -23,21 +23,8 @@ class Generations:
             path for path in (self.control / "roots").glob("*") if path.is_symlink()
         )
 
-    def remove(self, identifier: str) -> Path:
-        """Unlink an inactive generation; its former packages become eligible for GC."""
-        matches = [
-            path
-            for path in self.entries()
-            if identifier and path.name.startswith(identifier)
-        ]
-        if not matches:
-            raise ValueError(f"Unknown generation ID: {identifier}")
-        if len(matches) > 1:
-            raise ValueError(f"Ambiguous generation ID: {identifier}")
-
-        generation = matches[0]
-        if self.current is not None and generation == Path(self.current):
-            raise ValueError("Cannot remove the current generation")
-
-        generation.unlink()
-        return generation
+    def prune(self) -> None:
+        """Release inactive roots, including roots retained by older installers."""
+        for generation in self.entries():
+            if str(generation) != self.current:
+                generation.unlink()

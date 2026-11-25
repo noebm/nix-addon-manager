@@ -216,108 +216,65 @@ class InstallationsTests(unittest.TestCase):
         self.assertIn("No such file or directory", errors.getvalue())
         self.assertFalse((self.root / "state").exists())
 
-    def test_generations_operate_globally_and_can_be_scoped(self):
-        other = self.root / "other"
-        (other / "Interface/AddOns").mkdir(parents=True)
-        saved = []
-        for index, game in enumerate((self.game, other)):
-            installation = installer.Installation(game)
-            roots = installation.control / "roots"
-            roots.mkdir()
-            old = roots / f"abcd{index}"
-            current = roots / f"current{index}"
-            old.symlink_to("/missing-old")
-            current.symlink_to("/missing-current")
-            installer.write_json(
-                installation.state_path,
-                installer.InstallationState(game=str(game), manifest=str(current)),
-            )
-            saved.append((old, current))
-
-        output = self.cli("generations", "list")
-        self.assertIn("abcd0", output)
-        self.assertIn("abcd1", output)
-        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
-            self.cli("generations", "remove", "abcd")
-        self.assertTrue(all(old.is_symlink() for old, _ in saved))
-        self.cli("generations", "remove", "abcd0")
-        self.assertFalse(saved[0][0].is_symlink())
-        saved[0][0].symlink_to("/missing-old")
-        self.cli("generations", "prune", "--game-path", self.game)
-        self.assertFalse(saved[0][0].is_symlink())
-        self.assertTrue(saved[1][0].is_symlink())
-        (other / "Interface/AddOns").rmdir()
-        (other / "Interface").rmdir()
-        other.rmdir()
-        self.cli("generations", "prune")
-        self.assertFalse(saved[1][0].is_symlink())
-        self.assertTrue(saved[0][1].is_symlink())
-        self.assertFalse(saved[1][1].is_symlink())
-        self.assertIn("No generations", self.cli("generations", "list", "--game-path", other))
-
-    def test_global_prune_checks_transactions_before_removing_roots(self):
-        roots = []
-        for name in ("first", "second"):
+    def test_cleanup_releases_global_roots_and_skips_pending_and_locked(self):
+        saved = {}
+        for name in ("existing", "deleted", "pending", "locked", "legacy"):
             game = self.root / name
             (game / "Interface/AddOns").mkdir(parents=True)
             installation = installer.Installation(game)
-            directory = installation.control / "roots"
-            directory.mkdir()
-            old = directory / "old"
-            old.symlink_to("/missing")
-            roots.append(old)
+            roots = installation.control / "roots"
+            roots.mkdir()
+            old = roots / "old"
+            current = roots / "current"
+            old.symlink_to("/missing-old")
+            current.symlink_to("/missing-current")
+            (roots / "unrelated").write_text("keep")
+            installer.write_json(
+                installation.state_path,
+                installer.InstallationState(
+                    game=None if name == "legacy" else str(game),
+                    manifest=str(current),
+                ),
+            )
+            saved[name] = (installation, old, current)
 
-        installation.transaction.mkdir()
-        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
-            self.cli("generations", "prune")
+        shutil.rmtree(self.root / "deleted")
+        saved["pending"][0].transaction.mkdir()
+        with saved["locked"][0].lock(), redirect_stderr(StringIO()) as errors:
+            output = self.cli("cleanup")
 
-        self.assertTrue(all(root.is_symlink() for root in roots))
+        self.assertIn("Cleanup complete", output)
+        self.assertIn("Skipping", errors.getvalue())
+        for name, (installation, old, current) in saved.items():
+            self.assertEqual(old.is_symlink(), name in {"pending", "locked"})
+            self.assertEqual(current.is_symlink(), name != "deleted")
+            self.assertEqual((old.parent / "unrelated").read_text(), "keep")
 
-    def test_generations_commands_accept_game_path(self):
-        installation = installer.Installation(self.game)
-        roots = installation.control / "roots"
-        roots.mkdir()
-        old = roots / "aaaa1111"
-        current = roots / "bbbb2222"
-        old.symlink_to("/nix/store/old-manifest")
-        current.symlink_to("/nix/store/current-manifest")
-        installer.write_json(
-            installation.state_path, installer.InstallationState(manifest=str(current))
-        )
-
-        output = self.cli("generations", "list")
-        self.assertIn("Generations:", output)
-        self.assertIn("aaaa1111", output)
-        self.assertIn("bbbb2222 (current)", output)
-        self.assertIn(
-            "Removed generation: aaaa1111",
-            self.cli("generations", "remove", "aaaa", "--game-path", self.game),
-        )
-        self.assertFalse(old.is_symlink())
-        self.assertTrue(current.is_symlink())
-
-        old.symlink_to("/nix/store/old-manifest")
-        self.assertIn(
-            "Removed generation: aaaa1111",
-            self.cli("generations", "prune"),
-        )
-        self.assertFalse(old.is_symlink())
-        self.assertTrue(current.is_symlink())
-        self.assertIn("No old generations", self.cli("generations", "prune"))
-
-    def test_generations_prune_without_current_preserves_unrelated_files(self):
-        installation = installer.Installation(self.game)
-        roots = installation.control / "roots"
-        roots.mkdir()
+    def test_cleanup_finds_roots_without_requiring_hash_directory_names(self):
+        control = self.root / "state/nix-addon-manager/legacy-installation"
+        roots = control / "roots"
+        roots.mkdir(parents=True)
         old = roots / "old"
-        old.symlink_to("/missing-manifest")
-        unrelated = roots / "unrelated"
-        unrelated.write_text("keep")
+        old.symlink_to("/missing")
+        unrelated = control.parent / "unrelated"
+        unrelated.mkdir()
+        linked = control.parent / "linked"
+        linked.symlink_to(unrelated, target_is_directory=True)
 
-        self.assertIn("Removed generation: old", self.cli("generations", "prune"))
+        self.cli("cleanup")
+
         self.assertFalse(old.is_symlink())
-        self.assertEqual(unrelated.read_text(), "keep")
-        self.assertIn("No old generations", self.cli("generations", "prune"))
+        self.assertFalse((unrelated / "lock").exists())
+
+    def test_cleanup_without_saved_installations(self):
+        self.assertIn("Cleanup complete", self.cli("cleanup"))
+        self.assertFalse((self.root / "state").exists())
+
+    def test_generation_commands_are_removed(self):
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit) as failure:
+            self.cli("generations", "list")
+
+        self.assertEqual(failure.exception.code, 2)
 
     def test_installation_commands_are_removed(self):
         with redirect_stderr(StringIO()), self.assertRaises(SystemExit) as failure:
@@ -342,5 +299,4 @@ class InstallationsTests(unittest.TestCase):
             self.cli("recover", self.game)
 
         self.assertEqual(failure.exception.code, 1)
-        self.assertIn("No generations", self.cli("generations", "list"))
         self.assertEqual(registry.read_text(), "invalid legacy registry")

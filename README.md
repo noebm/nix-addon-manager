@@ -92,26 +92,13 @@ Use `recover ./addons.nix` to recover an interrupted installation using the
 configuration's `installation.gamePath`, or `recover <game-directory>` to recover directly
 without a configuration or Nix evaluation.
 
-### Generation management
-
-Each update saves a generation of your installation. **Previous generations are
-not removed automatically.** After you remove them, Nix can free the space they
-used the next time garbage collection runs.
-
-Manage retained generations with these commands.
-
-| Arguments | Action |
-| --- | --- |
-| `generations list` | List saved generations. |
-| `generations remove <id>` | Remove an inactive generation by ID or unique prefix. |
-| `generations prune` | Remove inactive generations and all generations whose recorded installation no longer exists. |
-
-Generation commands operate on all saved installations, including games whose
-directories no longer exist. Add
-`--game-path <path>` after the generation subcommand to limit it to one
-installation; a missing game can still be selected by its old path.
-Generation ID prefixes must be unique across the selected installations.
-Pruning preserves each installation's recorded current generation.
+Applied updates keep the installed addons rooted in the Nix store and remove
+superseded roots. Previous builds can be reused until Nix garbage collection
+removes them. Run `nix run github:noebm/nix-addon-manager -- cleanup` to release
+inactive roots across all saved installations and all roots for deleted games.
+Cleanup skips busy installations and interrupted transactions; recover and rerun
+cleanup as needed. Run Nix garbage collection afterward to reclaim unused store
+contents. Current roots are preserved when older state has no recorded game path.
 
 ## Supported addons
 
@@ -167,10 +154,12 @@ path outside the game directory.
 | `state.json` | Installed selection and managed directory ownership. |
 | `lock` | Lock file preventing concurrent operations. |
 | `transaction/` | Pending installation journal, staged links, and recovery links. |
-| `backups/<transaction-id>/` | Previous addon links retained after changes. |
-| `roots/<generation-id>` | Generation links (Nix GC roots) keeping manifests and addons available. |
+| `backups/<transaction-id>/` | Previous addon links retained after changes (may become dangling after GC). |
+| `roots/<generation-id>` | Nix GC root keeping the installed manifest and addons available. |
 
-Backups and generations are retained; automatic pruning is not implemented.
+Applied updates and recovery remove inactive generation roots, including roots
+retained by older versions. Nix can reuse previous builds until garbage collection
+removes them. Backups retain links only; they do not keep old store contents alive.
 The storage directory remains named `roots/` for compatibility.
 
 ## Updating releases

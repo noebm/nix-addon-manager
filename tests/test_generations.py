@@ -24,19 +24,24 @@ class GenerationsTests(unittest.TestCase):
         self.target.unlink()
         self.assertEqual(self.generations.entries(), [self.old, self.current])
 
-    def test_remove_unique_prefix_only_unlinks_generation(self):
-        self.assertEqual(self.generations.remove("abcd1"), self.old)
-        self.assertFalse(self.old.is_symlink())
+    def test_prune_releases_legacy_and_dangling_roots_but_keeps_current(self):
+        dangling = self.directory / "broken"
+        dangling.symlink_to(self.control / "missing")
+        unrelated = self.directory / "unrelated"
+        unrelated.write_text("keep")
+
+        self.generations.prune()
+        self.generations.prune()
+
+        self.assertEqual(self.generations.entries(), [self.current])
         self.assertTrue(self.target.exists())
-        self.assertTrue(self.current.is_symlink())
+        self.assertEqual(unrelated.read_text(), "keep")
 
-    def test_rejects_current_ambiguous_missing_and_path_ids(self):
-        for identifier in ("abcd2", "abcd", "missing", "../manifest", ""):
-            with self.subTest(identifier=identifier), self.assertRaises(ValueError):
-                self.generations.remove(identifier)
+    def test_prune_without_current_releases_all_roots(self):
+        Generations(self.control, None).prune()
 
-        self.assertTrue(self.old.is_symlink())
-        self.assertTrue(self.current.is_symlink())
+        self.assertEqual(self.generations.entries(), [])
+        self.assertTrue(self.target.exists())
 
     def test_does_not_treat_real_files_as_generations(self):
         (self.directory / "unrelated").write_text("keep")
