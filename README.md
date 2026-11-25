@@ -17,6 +17,20 @@ the command and its arguments.
 
 ### TLDR
 
+Find your local game installations:
+
+```sh
+nix run github:noebm/nix-addon-manager -- discover
+```
+
+This searches your home directory and prints a `gamePath` assignment for each
+validated client, with its flavor and interface version. Copy the appropriate
+assignment into `addons.nix`. To search another drive or a narrower directory, use
+`discover /path/to/games [other-directory ...]`. Discovery does not modify files
+or evaluate Nix configurations. It skips `.git`, `.cache`, and nested directory
+symlinks; pass a symlink explicitly to search its target. Unreadable directories
+and clients with invalid metadata produce warnings and are skipped.
+
 Save your [addon selection](#updating-addons) as `addons.nix`, for example:
 
 ```nix

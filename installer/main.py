@@ -19,7 +19,7 @@ from inspect import isfunction
 from pathlib import Path
 from typing import TextIO
 
-from .client import validate_compatibility
+from .client import discover_clients, validate_compatibility
 from .delta import Operation, display_plan, generate_plan, is_unchanged
 from .generations import Generations
 from .installations import (
@@ -513,6 +513,13 @@ def handle_generations(
 def main():
     parser = argparse.ArgumentParser(prog="nix-addon-manager", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    discover = commands.add_parser(
+        "discover", help="Locate local game installations for addons.nix"
+    )
+    discover.add_argument(
+        "paths", nargs="*", type=Path, help="Directories to search (default: home)"
+    )
+
     update = commands.add_parser("update", help="Preview or apply an addon selection")
     update.add_argument(
         "config", type=Path, help="Nix function returning gamePath and addons"
@@ -570,6 +577,17 @@ def main():
         )
 
     try:
+        if args.command == "discover":
+            clients = discover_clients(args.paths or [Path.home()])
+            for game, client in clients:
+                path = json.dumps(str(game), ensure_ascii=False).replace("${", "\\${")
+                print(f"# {client.flavor} (interface {client.interface})")
+                print(f"gamePath = {path};")
+
+            if not clients:
+                print("No installations found")
+            return
+
         if args.command == "generations":
             handle_generations(args, parser)
             return

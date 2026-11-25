@@ -1,11 +1,56 @@
 """Read local Blizzard client metadata and check declared addon compatibility."""
 
 import csv
+import os
 import re
 import sys
 from pathlib import Path
 
+from .installations import validate_game_path
 from .schemas import GameCompatibility, Manifest
+
+
+def discover_clients(roots: list[Path]) -> list[tuple[Path, GameCompatibility]]:
+    """Search directory trees without following nested directory symlinks.
+
+    Unreadable directories and invalid clients are reported and skipped.
+
+    Raises:
+        OSError: A search root cannot be resolved.
+        ValueError: A search root is not a directory.
+    """
+    clients = {}
+    visited = set()
+
+    def warn(error: OSError) -> None:
+        print(f"warning: {error}", file=sys.stderr)
+
+    for root in roots:
+        root = root.expanduser().resolve(strict=True)
+        if not root.is_dir():
+            raise ValueError(f"Search root is not a directory: {root}")
+
+        for directory, directories, files in os.walk(root, onerror=warn):
+            game = Path(directory)
+            if game in visited:
+                directories.clear()
+                continue
+
+            visited.add(game)
+            directories[:] = [
+                name for name in directories if name not in {".git", ".cache"}
+            ]
+            if ".flavor.info" not in files or not (game / "Interface/AddOns").is_dir():
+                continue
+
+            directories.clear()
+            try:
+                game = validate_game_path(game)
+                clients[game] = detect_client(game)
+            except (OSError, ValueError) as error:
+                print(f"warning: skipping {game}: {error}", file=sys.stderr)
+
+    return sorted(clients.items())
 
 
 # FIXME: Return a client type with required flavor and interface fields;
