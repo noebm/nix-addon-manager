@@ -568,104 +568,103 @@ def main():
 
     args = parser.parse_args()
 
-    # MIGRATION (manifest schema 1 -> 2): remove with the hidden option above.
-    if args.command == "update" and args.removed_game_path is not None:
-        update.error(
-            "--game-path is no longer supported for update; "
-            'set gamePath = "/path/to/WoW/_forever_"; in your Nix configuration '
-            "and remove --game-path from the command"
-        )
-
     try:
-        if args.command == "discover":
-            clients = discover_clients(args.paths or [Path.home()])
-            for game, client in clients:
-                path = json.dumps(str(game), ensure_ascii=False).replace("${", "\\${")
-                print(f"# {client.flavor} (interface {client.interface})")
-                print(f"gamePath = {path};")
-
-            if not clients:
-                print("No installations found")
-            return
-
-        if args.command == "generations":
-            handle_generations(args, parser)
-            return
-
         repository = Path(__file__).resolve().parents[1]
 
-        if args.command == "export":
-            if os.path.lexists(args.output):
-                raise FileExistsError(
-                    errno.EEXIST, os.strerror(errno.EEXIST), args.output
-                )
+        match args.command:
+            case "discover":
+                clients = discover_clients(args.paths or [Path.home()])
+                for game, client in clients:
+                    path = json.dumps(str(game), ensure_ascii=False).replace(
+                        "${", "\\${"
+                    )
+                    print(f"# {client.flavor} (interface {client.interface})")
+                    print(f"gamePath = {path};")
 
-            configuration = args.config.resolve(strict=True)
-            # Keep the build rooted until all package contents have been archived.
-            with tempfile.TemporaryDirectory(prefix="addon-export-") as temporary:
-                manifest = nix_manifest(
-                    repository,
-                    configuration,
-                    out_link=Path(temporary) / "manifest",
-                )
-                export_zip(manifest, args.output.absolute())
-            for package in manifest.packages:
-                print(f"exported: {package.name} {package.version}")
+                if not clients:
+                    print("No installations found")
 
-            print(f"Export complete: {args.output}")
-            return
+            case "generations":
+                handle_generations(args, parser)
 
-        if args.command == "update":
-            configuration = args.config.resolve(strict=True)
-            manifest = nix_manifest(repository, configuration)
-            game_path = Path(manifest.gamePath).expanduser()
-        else:
-            target = args.target.expanduser().resolve(strict=True)
-            if target.is_dir():
-                game_path = target
-            else:
-                manifest = nix_manifest(repository, target)
+            case "export":
+                if os.path.lexists(args.output):
+                    raise FileExistsError(
+                        errno.EEXIST, os.strerror(errno.EEXIST), args.output
+                    )
+
+                configuration = args.config.resolve(strict=True)
+                # Keep the build rooted until all package contents have been archived.
+                with tempfile.TemporaryDirectory(prefix="addon-export-") as temporary:
+                    manifest = nix_manifest(
+                        repository,
+                        configuration,
+                        out_link=Path(temporary) / "manifest",
+                    )
+                    export_zip(manifest, args.output.absolute())
+                for package in manifest.packages:
+                    print(f"exported: {package.name} {package.version}")
+
+                print(f"Export complete: {args.output}")
+
+            case "update":
+                # MIGRATION (manifest schema 1 -> 2): remove with the hidden option above.
+                if args.removed_game_path is not None:
+                    update.error(
+                        "--game-path is no longer supported for update; "
+                        'set gamePath = "/path/to/WoW/_forever_"; in your Nix configuration '
+                        "and remove --game-path from the command"
+                    )
+
+                configuration = args.config.resolve(strict=True)
+                manifest = nix_manifest(repository, configuration)
                 game_path = Path(manifest.gamePath).expanduser()
 
-        installation = Installation(game_path)
-        with installation.lock() as locked:
-            if args.command == "recover":
-                if (
-                    not installation.state_path.exists()
-                    and not installation.transaction.exists()
-                ):
-                    raise ValueError(
-                        "No managed addon installation or pending transaction to recover"
-                    )
+                installation = Installation(game_path)
+                with installation.lock() as locked:
+                    plan = locked.reconcile(manifest)
+                    display_plan(plan)
 
-                locked.recover()
-                print("Recovery complete")
-                return
+                    if all(is_unchanged(operation) for operation in plan.values()):
+                        print("No addon updates found.")
+                        print(
+                            "If updates were expected, add --refresh before the -- separator in nix run."
+                        )
 
-            plan = locked.reconcile(manifest)
-            display_plan(plan)
+                    if args.apply:
+                        generations = locked.generations()
+                        root = generations.add()
+                        # Keep every generation rooted, including interrupted operations and backups.
+                        built = nix_manifest(repository, configuration, out_link=root)
+                        if built != manifest:
+                            raise ValueError(
+                                "Configuration changed during build; preview again"
+                            )
+                        locked.reconcile(built, apply=True, manifest_root=root)
+                        print("Installation complete")
+                    else:
+                        print("Preview only; pass --apply to install")
 
-            if args.command == "update" and all(
-                is_unchanged(operation) for operation in plan.values()
-            ):
-                print("No addon updates found.")
-                print(
-                    "If updates were expected, add --refresh before the -- separator in nix run."
-                )
+            case "recover":
+                target = args.target.expanduser().resolve(strict=True)
+                if target.is_dir():
+                    game_path = target
+                else:
+                    manifest = nix_manifest(repository, target)
+                    game_path = Path(manifest.gamePath).expanduser()
 
-            if args.apply:
-                generations = locked.generations()
-                root = generations.add()
-                # Keep every generation rooted, including interrupted operations and backups.
-                built = nix_manifest(repository, configuration, out_link=root)
-                if built != manifest:
-                    raise ValueError(
-                        "Configuration changed during build; preview again"
-                    )
-                locked.reconcile(built, apply=True, manifest_root=root)
-                print("Installation complete")
-            else:
-                print("Preview only; pass --apply to install")
+                installation = Installation(game_path)
+                with installation.lock() as locked:
+                    if (
+                        not installation.state_path.exists()
+                        and not installation.transaction.exists()
+                    ):
+                        raise ValueError(
+                            "No managed addon installation or pending transaction to recover"
+                        )
+
+                    locked.recover()
+                    print("Recovery complete")
     except (
         OSError,
         ValueError,
