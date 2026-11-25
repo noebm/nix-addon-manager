@@ -612,6 +612,14 @@ def main():
         installation = Installation(game_path)
         with installation.lock() as locked:
             if args.command == "recover":
+                if (
+                    not installation.state_path.exists()
+                    and not installation.transaction.exists()
+                ):
+                    raise ValueError(
+                        "No managed addon installation or pending transaction to recover"
+                    )
+
                 locked.recover()
                 print("Recovery complete")
                 return

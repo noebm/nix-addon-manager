@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -75,12 +76,18 @@ class InstallationsTests(unittest.TestCase):
                 evaluate.assert_not_called()
 
     def test_recover_without_config(self):
+        installation = installer.Installation(self.game)
+        installer.write_json(installation.state_path, installer.InstallationState())
+
         with patch.object(installer, "nix_manifest") as evaluate:
             self.assertIn("Recovery complete", self.cli("recover", self.game))
 
         evaluate.assert_not_called()
 
     def test_recover_with_config(self):
+        installation = installer.Installation(self.game)
+        installer.write_json(installation.state_path, installer.InstallationState())
+
         config = self.root / "addons.nix"
         config.touch()
         manifest = installer.Manifest(gamePath=str(self.game), packages=[])
@@ -89,6 +96,62 @@ class InstallationsTests(unittest.TestCase):
             self.assertIn("Recovery complete", self.cli("recover", config))
 
         self.assertTrue(installer.Installation(self.game).control.is_dir())
+
+    def test_recover_rejects_directory_without_game(self):
+        directory = self.root / "not-a-game"
+        directory.mkdir()
+        errors = StringIO()
+        with redirect_stderr(errors), self.assertRaises(SystemExit) as failure:
+            self.cli("recover", directory)
+
+        self.assertEqual(failure.exception.code, 1)
+        self.assertIn("Game path must contain real Interface/AddOns", errors.getvalue())
+        self.assertFalse((self.root / "state").exists())
+
+    def test_recover_rejects_unmanaged_installation_and_leaves_addons_untouched(self):
+        addon = self.game / "Interface/AddOns/Unmanaged"
+        addon.mkdir()
+        contents = addon / "keep.txt"
+        contents.write_text("keep")
+
+        for _ in range(2):
+            errors = StringIO()
+            with redirect_stderr(errors), self.assertRaises(SystemExit) as failure:
+                self.cli("recover", self.game)
+
+            self.assertEqual(failure.exception.code, 1)
+            self.assertIn("No managed addon installation", errors.getvalue())
+
+        self.assertEqual(contents.read_text(), "keep")
+        self.assertFalse(installer.Installation(self.game).state_path.exists())
+
+    def test_recover_first_installation_with_pending_transaction(self):
+        installation = installer.Installation(self.game)
+        installation.transaction.mkdir()
+
+        self.assertIn("Recovery complete", self.cli("recover", self.game))
+        self.assertFalse(installation.transaction.exists())
+
+    @unittest.skipUnless(shutil.which("nix"), "Nix is required")
+    def test_recover_rejects_nix_file_without_addon_configuration(self):
+        config = self.root / "unrelated.nix"
+        config.write_text("{ ... }: { unrelated = true; }")
+        errors = StringIO()
+        with redirect_stderr(errors), self.assertRaises(SystemExit) as failure:
+            self.cli("recover", config)
+
+        self.assertEqual(failure.exception.code, 1)
+        self.assertIn("error:", errors.getvalue())
+        self.assertFalse((self.root / "state").exists())
+
+    def test_recover_rejects_missing_target(self):
+        errors = StringIO()
+        with redirect_stderr(errors), self.assertRaises(SystemExit) as failure:
+            self.cli("recover", self.root / "missing")
+
+        self.assertEqual(failure.exception.code, 1)
+        self.assertIn("No such file or directory", errors.getvalue())
+        self.assertFalse((self.root / "state").exists())
 
     def test_generations_operate_globally_and_can_be_scoped(self):
         other = self.root / "other"
@@ -212,6 +275,9 @@ class InstallationsTests(unittest.TestCase):
         registry.parent.mkdir(parents=True)
         registry.write_text("invalid legacy registry")
 
-        self.assertIn("Recovery complete", self.cli("recover", self.game))
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit) as failure:
+            self.cli("recover", self.game)
+
+        self.assertEqual(failure.exception.code, 1)
         self.assertIn("No generations", self.cli("generations", "list"))
         self.assertEqual(registry.read_text(), "invalid legacy registry")
