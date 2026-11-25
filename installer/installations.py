@@ -5,11 +5,12 @@ import hashlib
 import json
 import os
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Self
 
 from .schemas import RegisteredInstallation, RegistryDocument
+from .storage import write_json
 
 
 @dataclass(frozen=True)
@@ -84,13 +85,7 @@ class InstallationRegistry:
             self._read()
             yield self
 
-            temporary = self._document_path.with_suffix(".tmp")
-            with temporary.open("w") as stream:
-                json.dump(asdict(self._document), stream, indent=2)
-                stream.flush()
-                os.fsync(stream.fileno())
-
-            temporary.replace(self._document_path)
+            write_json(self._document_path, self._document)
 
     def _resolve_identifier(self, value: str) -> str | None:
         if value in self._document.installations:
