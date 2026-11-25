@@ -402,7 +402,7 @@ def export_zip(manifest: Manifest, destination: Path) -> None:
 
 
 @contextmanager
-def saved_generations(state_dir: Path):
+def saved_generations(state_dir: Path, *, prune: bool = False):
     """Access saved generations without requiring the game to still exist."""
     if state_dir.is_symlink():
         raise ValueError("Manager state directory must not be a symlink")
@@ -425,7 +425,11 @@ def saved_generations(state_dir: Path):
             if state_path.exists()
             else InstallationState()
         )
-        yield Generations(state_dir, state.manifest)
+        current = state.manifest
+        if prune and state.game is not None and not Path(state.game).exists():
+            current = None
+
+        yield Generations(state_dir, current)
 
 
 def handle_generations(
@@ -450,7 +454,9 @@ def handle_generations(
     # FIXME: Manage generations from a single state description.
     with ExitStack() as stack:
         installations = [
-            stack.enter_context(saved_generations(state_dir))
+            stack.enter_context(
+                saved_generations(state_dir, prune=args.generation_action == "prune")
+            )
             for state_dir in state_dirs
         ]
         entries = [

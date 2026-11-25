@@ -112,8 +112,9 @@ class InstallationsTests(unittest.TestCase):
         other.rmdir()
         self.cli("generations", "prune")
         self.assertFalse(saved[1][0].is_symlink())
-        self.assertTrue(all(current.is_symlink() for _, current in saved))
-        self.assertIn("current1", self.cli("generations", "list", "--game-path", other))
+        self.assertTrue(saved[0][1].is_symlink())
+        self.assertFalse(saved[1][1].is_symlink())
+        self.assertIn("No generations", self.cli("generations", "list", "--game-path", other))
 
     def test_global_prune_checks_transactions_before_removing_roots(self):
         roots = []

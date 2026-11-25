@@ -86,7 +86,7 @@ Manage retained generations with these commands.
 | --- | --- |
 | `generations list` | List saved generations. |
 | `generations remove <id>` | Remove an inactive generation by ID or unique prefix. |
-| `generations prune` | Remove all inactive generations. |
+| `generations prune` | Remove inactive generations and all generations whose recorded installation no longer exists. |
 
 Generation commands operate on all saved installations, including games whose
 directories no longer exist. Add
