@@ -72,8 +72,7 @@ and `installation.addons`.
 Updates use `installation.gamePath` from the configuration.
 Use a quoted string for `installation.gamePath` (including `~/...` for a home-relative path).
 
-Addon versions are pinned in this repository and updated by its maintainers.
-Rerun the command to install the versions currently pinned in the repository.
+Addon versions are pinned in this repository.
 
 For ZIP exports, extract the archive into `Interface/AddOns` on the target machine. The ZIP
 must not already exist. Export creates no installation state and ignores `gamePath`.
