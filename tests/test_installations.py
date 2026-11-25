@@ -75,7 +75,20 @@ class InstallationsTests(unittest.TestCase):
                 evaluate.assert_not_called()
 
     def test_recover_without_config(self):
-        self.assertIn("Recovery complete", self.cli("recover", "--game-path", self.game))
+        with patch.object(installer, "nix_manifest") as evaluate:
+            self.assertIn("Recovery complete", self.cli("recover", self.game))
+
+        evaluate.assert_not_called()
+
+    def test_recover_with_config(self):
+        config = self.root / "addons.nix"
+        config.touch()
+        manifest = installer.Manifest(gamePath=str(self.game), packages=[])
+
+        with patch.object(installer, "nix_manifest", return_value=manifest):
+            self.assertIn("Recovery complete", self.cli("recover", config))
+
+        self.assertTrue(installer.Installation(self.game).control.is_dir())
 
     def test_generations_operate_globally_and_can_be_scoped(self):
         other = self.root / "other"
@@ -192,13 +205,13 @@ class InstallationsTests(unittest.TestCase):
             self.cli("recover")
 
         self.assertEqual(failure.exception.code, 2)
-        self.assertIn("--game-path", errors.getvalue())
+        self.assertIn("target", errors.getvalue())
 
     def test_legacy_registry_is_ignored(self):
         registry = self.root / "state/nix-addon-manager/installations.json"
         registry.parent.mkdir(parents=True)
         registry.write_text("invalid legacy registry")
 
-        self.assertIn("Recovery complete", self.cli("recover", "--game-path", self.game))
+        self.assertIn("Recovery complete", self.cli("recover", self.game))
         self.assertIn("No generations", self.cli("generations", "list"))
         self.assertEqual(registry.read_text(), "invalid legacy registry")

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+- **Breaking change:** Recovery accepts `recover <config-or-game-directory>`
+  instead of `recover --game-path <path>`. Configuration files supply `gamePath`;
+  game directories allow recovery without Nix evaluation.
+
 ## 0.3.0
 
 - **Breaking change:** Remove manual installation registration, the

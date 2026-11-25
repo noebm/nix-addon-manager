@@ -71,8 +71,9 @@ must not already exist. Export creates no installation state and ignores `gamePa
 
 ### Recovery
 
-Use `recover --game-path <path>` to recover an interrupted installation without a
-configuration.
+Use `recover ./addons.nix` to recover an interrupted installation using the
+configuration's `gamePath`, or `recover <game-directory>` to recover directly
+without a configuration or Nix evaluation.
 
 ### Generation management
 

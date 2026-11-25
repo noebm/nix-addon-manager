@@ -535,7 +535,9 @@ def main():
     )
 
     recover = commands.add_parser("recover", help="Recover an interrupted transaction")
-    recover.add_argument("--game-path", type=Path, required=True, help="Game directory")
+    recover.add_argument(
+        "target", type=Path, help="Nix configuration or game directory"
+    )
 
     generations = commands.add_parser(
         "generations", help="Manage installation generations"
@@ -600,7 +602,12 @@ def main():
             manifest = nix_manifest(repository, configuration)
             game_path = Path(manifest.gamePath).expanduser()
         else:
-            game_path = args.game_path.expanduser()
+            target = args.target.expanduser().resolve(strict=True)
+            if target.is_dir():
+                game_path = target
+            else:
+                manifest = nix_manifest(repository, target)
+                game_path = Path(manifest.gamePath).expanduser()
 
         installation = Installation(game_path)
         with installation.lock() as locked:
