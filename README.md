@@ -131,8 +131,7 @@ Releases and download hashes are pinned in addon and component definitions;
 ## Storage
 
 Addon files and generated manifests live in the Nix store. The game's addon
-directory contains links to the addon files. Your `addons.nix` configuration stays
-where you saved it.
+directory contains links to the addon files.
 
 Installer files live under
 `$XDG_STATE_HOME/nix-addon-manager/<installation-id>/`, defaulting to
