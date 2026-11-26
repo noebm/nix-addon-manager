@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "books-on-map-forever";
-  version = "2.4.0";
+  version = "2.4.1";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9774/420/Books_on_map_Foreverv2.4.0.zip";
-      hash = "sha256-K51Th1W0/xWzkEiGQ2dbJoQ1hYhd96I+uNCkhSTNcnU=";
+      url = "https://edge.forgecdn.net/files/9820/222/Books_on_map_Foreverv2.4.1.zip";
+      hash = "sha256-WII25uXLXoyXRRPV+8lULLe7Z62A5XoXLR5D9VCLVMM=";
     })
   ];
 
