@@ -21,6 +21,7 @@ stdenvNoCC.mkDerivation (
     nativeBuildInputs = args.nativeBuildInputs or [ unzip ];
     dontUnpack = true;
     dontBuild = true;
+    doInstallCheck = true;
 
     passthru =
       passthru
@@ -40,6 +41,35 @@ stdenvNoCC.mkDerivation (
 
         runHook postInstall
       '';
+
+    installCheckPhase = ''
+      runHook preInstallCheck
+
+      for directory in ${lib.escapeShellArgs addonDirectories}; do
+        addon="$out/share/wow-addons/$directory"
+        if [ ! -d "$addon" ]; then
+          echo "Addon directory $directory is missing; expected a directory containing a .toc file" >&2
+          exit 1
+        fi
+
+        foundToc=false
+        for toc in "$addon"/*.toc; do
+          if [ -f "$toc" ]; then
+            foundToc=true
+            break
+          fi
+        done
+
+        if [ "$foundToc" = false ]; then
+          echo "Addon directory $directory contains no .toc file" >&2
+          exit 1
+        fi
+      done
+
+      ${args.installCheckPhase or ""}
+
+      runHook postInstallCheck
+    '';
 
     meta = {
       platforms = lib.platforms.all;
