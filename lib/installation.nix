@@ -8,6 +8,8 @@
   ...
 }:
 let
+  types = import ./types.nix { inherit lib; };
+
   definition = import (builtins.toPath installationFile) {
     inherit
       config
@@ -46,7 +48,7 @@ in
       description = "Game directory, expressed as a quoted string rather than a Nix path.";
     };
     addons = lib.mkOption {
-      type = lib.types.listOf lib.types.package;
+      type = lib.types.listOf types.addonOrBundle;
       default = throw "The option `installation.addons' must be defined, even if it is an empty list.";
       description = "Selected addon packages.";
     };

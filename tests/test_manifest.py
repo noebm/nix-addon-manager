@@ -12,6 +12,36 @@ from installer.main import nix_manifest, selected_directories
 
 @unittest.skipUnless(shutil.which("nix"), "Nix is required")
 class ManifestTests(unittest.TestCase):
+    def test_ordinary_packages_are_rejected_as_addons(self) -> None:
+        repository = Path(__file__).resolve().parents[1]
+        selections = [
+            "pkgs.hello",
+            '(pkgs.hello.overrideAttrs { passthru.addonDirectories = "Hello"; })',
+            '(pkgs.hello.overrideAttrs { passthru.addonDirectories = [ 123 ]; })',
+            '(addons.spoken-english.overrideAttrs (old: { passthru = old.passthru // { paths = [ pkgs.hello ]; }; }))',
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            configuration = Path(directory) / "addons.nix"
+            for selection in selections:
+                with self.subTest(selection=selection):
+                    configuration.write_text(
+                        '{ pkgs, addons, ... }: { installation.gamePath = "/game"; '
+                        f'installation.addons = [ {selection} ]; }}'
+                    )
+                    result = subprocess.run(
+                        [
+                            "nix", "eval", "--impure", "--json", "--expr",
+                            f"import {repository / 'lib/manifest.nix'} {{ "
+                            f"repository = {json.dumps(str(repository))}; "
+                            f"installationFile = {json.dumps(str(configuration))}; build = false; }}",
+                        ],
+                        text=True, capture_output=True,
+                    )
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("installation.addons", result.stderr)
+                    self.assertIn("addon package", result.stderr)
+
     # MIGRATION (manifest schema 1 -> 2): remove with the list-only guidance.
     def test_old_configuration_reports_how_to_migrate(self):
         repository = Path(__file__).resolve().parents[1]
