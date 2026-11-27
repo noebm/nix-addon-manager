@@ -53,8 +53,6 @@ def discover_clients(roots: list[Path]) -> list[tuple[Path, GameCompatibility]]:
     return sorted(clients.items())
 
 
-# FIXME: Return a client type with required flavor and interface fields;
-# GameCompatibility permits None for optional addon constraints.
 def detect_client(game: Path) -> GameCompatibility:
     """Select the active build for this client's product, without running it."""
     flavor_path = game / ".flavor.info"
@@ -132,22 +130,16 @@ def detect_client(game: Path) -> GameCompatibility:
 
 def validate_compatibility(game: Path, manifest: Manifest) -> None:
     """Reject incompatible targets, but warn and allow older addon targets."""
-    fields = ("flavor", "interface")
     packages = [
-        package
-        for package in manifest.packages
-        if package.compatibility is not None
-        and any(getattr(package.compatibility, field) is not None for field in fields)
+        package for package in manifest.packages if package.compatibility is not None
     ]
     if not packages:
         return
 
-    # FIXME: Detected flavor and interface are populated, but their types permit
-    # None; use a client type with required fields for these comparisons.
     client = detect_client(game)
     for package in packages:
         compatibility = package.compatibility
-        if compatibility.flavor is not None and compatibility.flavor != client.flavor:
+        if compatibility.flavor != client.flavor:
             raise ValueError(
                 f"{package.name}: targets game flavor {compatibility.flavor}, "
                 f"but the installed client is {client.flavor}"
@@ -155,7 +147,7 @@ def validate_compatibility(game: Path, manifest: Manifest) -> None:
 
         expected = compatibility.interface
         actual = client.interface
-        if expected is None or expected == actual:
+        if expected == actual:
             continue
         if expected > actual:
             raise ValueError(

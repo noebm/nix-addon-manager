@@ -375,17 +375,17 @@ class InstallationTests(unittest.TestCase):
                 self.assertIn("16001", warnings.getvalue())
         self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")
 
-    def test_partial_compatibility_declarations_warn_for_older_targets(self):
+    def test_partial_compatibility_declarations_are_rejected(self):
         for compatibility in (
+            {},
             {"interface": 16000},
-            {"flavor": "forever", "interface": 16000},
+            {"flavor": "forever"},
         ):
             self.client_metadata()
             self.manifest["packages"][0]["compatibility"] = compatibility
             with self.subTest(compatibility=compatibility):
-                with patch("sys.stderr", new_callable=StringIO) as warnings:
+                with self.assertRaises(TypeError):
                     self.run_install(False)
-                self.assertIn("out of date", warnings.getvalue())
 
     def test_matching_client_does_not_warn(self):
         self.client_metadata()
@@ -439,7 +439,6 @@ class InstallationTests(unittest.TestCase):
         self.client_metadata(product="wow_classic_beta")
         self.run_install()
         self.client_metadata(product="wow_classic_beta", version="5.5.0.12345")
-        self.manifest["packages"][0]["compatibility"] = {"flavor": "forever"}
         with self.assertRaisesRegex(ValueError, "flavor"):
             self.run_install()
 

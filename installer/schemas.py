@@ -25,10 +25,10 @@ class DownloadSource:
 
 @dataclass
 class GameCompatibility:
-    """Optional game flavor and numeric addon interface version."""
+    """Game flavor and numeric addon interface version."""
 
-    flavor: str | None = None
-    interface: int | None = None
+    flavor: str
+    interface: int
 
 
 @dataclass
