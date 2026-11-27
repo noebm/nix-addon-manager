@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "lfg-forever";
-  version = "2.8.0";
+  version = "2.9.0";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9817/410/LFGForever.zip";
-      hash = "sha256-gdK+KJUuHkWbDJi62teiY1Wv9asF0oJLp+u3N0cjuhQ=";
+      url = "https://edge.forgecdn.net/files/9855/797/LFGForever.zip";
+      hash = "sha256-n7ibYpJC6NVn5uGn4nMPcPJgxtRUwQFnPFycIRbV5j0=";
     })
   ];
 
