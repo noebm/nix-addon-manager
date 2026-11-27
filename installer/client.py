@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from .installations import validate_game_path
-from .schemas import GameCompatibility, Manifest
+from .schemas import GameCompatibility, GameFlavor, Manifest
 
 
 def discover_clients(roots: list[Path]) -> list[tuple[Path, GameCompatibility]]:
@@ -112,15 +112,9 @@ def detect_client(game: Path) -> GameCompatibility:
         raise ValueError(f"Invalid client version {version!r} in {build_path}")
 
     major, minor, patch, _ = map(int, match.groups())
-    flavor = {
-        "wow": "retail",
-        "wow_classic": "classic",
-        "wow_classic_era": "classic-era",
-        "wowf": "forever",
-    }.get(product, product)
-    # The beta product slot can be reused for other Classic releases.
-    if product == "wow_classic_beta" and (major, minor) == (1, 60):
-        flavor = "forever"
+    flavor = GameFlavor.from_product(product, major, minor)
+    if flavor is None:
+        raise ValueError(f"Unsupported game flavor for product {product}")
 
     return GameCompatibility(
         flavor=flavor,

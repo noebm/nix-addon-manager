@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from installer import main as installer
 from installer import schemas
+from installer.client import detect_client
 from installer.delta import generate_plan
 
 
@@ -46,6 +47,23 @@ class PlanTests(unittest.TestCase):
 
 
 class SchemaTests(unittest.TestCase):
+    def test_game_flavor_from_product(self):
+        for product, version, expected in (
+            ("wow", (12, 0), schemas.GameFlavor.RETAIL),
+            ("wow_classic", (5, 5), schemas.GameFlavor.CLASSIC),
+            ("wow_classic_era", (1, 15), schemas.GameFlavor.CLASSIC_ERA),
+            ("wowf", (1, 60), schemas.GameFlavor.FOREVER),
+            ("wow_classic_beta", (1, 60), schemas.GameFlavor.FOREVER),
+        ):
+            with self.subTest(product=product):
+                self.assertIs(
+                    schemas.GameFlavor.from_product(product, *version), expected
+                )
+
+        for product in ("unknown", "wow_classic_beta"):
+            with self.subTest(product=product):
+                self.assertIsNone(schemas.GameFlavor.from_product(product, 5, 5))
+
     def test_manifest_requires_nonempty_game_path(self):
         for value in (None, "", 123):
             with self.subTest(value=value), self.assertRaises(ValueError):
@@ -76,15 +94,26 @@ class SchemaTests(unittest.TestCase):
             ],
         }
         manifest = schemas.Manifest.from_dict(data)
+        self.assertIs(manifest.packages[0].compatibility.flavor, schemas.GameFlavor.FOREVER)
         self.assertEqual(manifest.packages[0].compatibility.interface, 16001)
         self.assertEqual(manifest.packages[0].sources[0].hashAlgorithm, "sha256")
         self.assertEqual(asdict(manifest), data)
 
     def test_compatibility_has_one_numeric_version(self):
-        compatibility = schemas.GameCompatibility(flavor="forever", interface=16001)
+        compatibility = schemas.GameCompatibility(
+            flavor=schemas.GameFlavor.FOREVER, interface=16001
+        )
         self.assertEqual(
             asdict(compatibility), {"flavor": "forever", "interface": 16001}
         )
+
+    def test_manifest_rejects_unknown_game_flavor(self):
+        with self.assertRaises(ValueError):
+            schemas.ManifestPackage.from_dict({
+                "name": "test", "version": "1", "path": "/nix/store/test",
+                "directories": ["Test"],
+                "compatibility": {"flavor": "unknown", "interface": 16001},
+            })
 
     def test_legacy_state_and_journal_decode(self):
         state = schemas.InstallationState.from_dict(
@@ -319,6 +348,7 @@ class InstallationTests(unittest.TestCase):
         for parent in (True, False):
             with self.subTest(parent=parent):
                 self.client_metadata(parent=parent)
+                self.assertIs(detect_client(self.game).flavor, schemas.GameFlavor.FOREVER)
                 self.run_install(False)
                 self.run_install()
         self.assertEqual((self.target / "Test/Test.toc").read_text(), "version one")

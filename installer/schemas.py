@@ -1,6 +1,7 @@
 """Dataclass schemas and validation for installer JSON documents."""
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Self
 
@@ -23,12 +24,41 @@ class DownloadSource:
     hashAlgorithm: str
 
 
+class GameFlavor(StrEnum):
+    """Supported game client flavors."""
+
+    RETAIL = "retail"
+    CLASSIC = "classic"
+    CLASSIC_ERA = "classic-era"
+    FOREVER = "forever"
+
+    @classmethod
+    def from_product(cls, product: str, major: int, minor: int) -> "GameFlavor | None":
+        """Resolve a Blizzard product and version, or return None if unsupported."""
+        # The beta product slot can be reused for other Classic releases.
+        if product == "wow_classic_beta" and (major, minor) == (1, 60):
+            return cls.FOREVER
+
+        return _PRODUCT_FLAVORS.get(product)
+
+
+_PRODUCT_FLAVORS: dict[str, GameFlavor] = {
+    "wow": GameFlavor.RETAIL,
+    "wow_classic": GameFlavor.CLASSIC,
+    "wow_classic_era": GameFlavor.CLASSIC_ERA,
+    "wowf": GameFlavor.FOREVER,
+}
+
+
 @dataclass
 class GameCompatibility:
     """Game flavor and numeric addon interface version."""
 
-    flavor: str
+    flavor: GameFlavor
     interface: int
+
+    def __post_init__(self):
+        self.flavor = GameFlavor(self.flavor)
 
 
 @dataclass
