@@ -112,6 +112,7 @@ In a local checkout, use `nix eval --json .#addonList`.
 | Faster Loot | `faster-loot` | Instant looting of mobs and containers; WoW Forever 1.60.1 (interface 16001); unfree |
 | Forever Leveling BiS | `forever-leveling-bis` | Best-in-slot leveling gear from quests, dungeons and crafting; WoW Forever 1.60.1 (interface 16001); unfree |
 | Forever Trinket Menu | `forever-trinket-menu` | Quick trinket swapping, combat queue and auto-rotation; WoW Forever 1.60.1 (interface 16001) |
+| GatherMate2 | `gathermate2` | Gathering node tracking on the world map and minimap; WoW Forever 1.60.1 (interface 16001); unfree |
 | GearQuest Forever | `gearquest-forever` | Leveling gear upgrades and hunt tracking; WoW Forever 1.60.1 (interface 16001); unfree |
 | Kill on Sight | `kill-on-sight` | Hostile player and guild tracking with nearby alerts; WoW Forever 1.60.1 (interface 16001) |
 | LFG Forever | `lfg-forever` | Dungeon group finder with role, class and level filters; WoW Forever 1.60.1 (interface 16001) |

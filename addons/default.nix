@@ -12,6 +12,7 @@ let
     faster-loot = self.callPackage ./faster-loot/package.nix { };
     forever-leveling-bis = self.callPackage ./forever-leveling-bis/package.nix { };
     forever-trinket-menu = self.callPackage ./forever-trinket-menu/package.nix { };
+    gathermate2 = self.callPackage ./gathermate2/package.nix { };
     gearquest-forever = self.callPackage ./gearquest-forever/package.nix { };
     kill-on-sight = self.callPackage ./kill-on-sight/package.nix { };
     lfg-forever = self.callPackage ./lfg-forever/package.nix { };
@@ -28,6 +29,7 @@ in
     faster-loot
     forever-leveling-bis
     forever-trinket-menu
+    gathermate2
     gearquest-forever
     kill-on-sight
     lfg-forever
