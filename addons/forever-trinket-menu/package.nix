@@ -6,12 +6,12 @@
 
 mkAddon {
   pname = "forever-trinket-menu";
-  version = "1.8.23";
+  version = "1.9.0";
 
   srcs = [
     (fetchurl {
-      url = "https://edge.forgecdn.net/files/9826/650/ForeverTrinketMenu-v1.8.23.zip";
-      hash = "sha256-t5SjTd+gZfPHxnibWDbmFIyRz4shXiM2i9sZgyrHuPk=";
+      url = "https://edge.forgecdn.net/files/9862/821/ForeverTrinketMenu-v1.9.0.zip";
+      hash = "sha256-ghy/KrjD440V5Bspp2eCTTH790G/j+tTP0PLJOtU8+w=";
     })
   ];
 
